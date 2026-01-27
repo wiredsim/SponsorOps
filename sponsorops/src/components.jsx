@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image } from 'lucide-react';
 
 // Sponsor Modal Component
 export function SponsorModal({ sponsor, onClose, onSave, statusOptions }) {
@@ -514,6 +514,86 @@ export function InteractionModal({ sponsor, onClose, onSave }) {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// Logo Upload Component
+export function LogoUpload({ currentLogo, onUpload, disabled }) {
+  const fileInputRef = useRef(null);
+  const [preview, setPreview] = useState(currentLogo);
+  const [error, setError] = useState(null);
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      setError('Please upload a JPEG, PNG, or WebP image');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Image must be less than 2MB');
+      return;
+    }
+
+    setError(null);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+
+    // Pass file to parent
+    onUpload(file);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-4">
+        {preview ? (
+          <img
+            src={preview}
+            alt="Logo preview"
+            className="w-20 h-20 rounded-lg object-cover border border-slate-600"
+          />
+        ) : (
+          <div className="w-20 h-20 bg-slate-700 rounded-lg flex items-center justify-center border border-slate-600">
+            <Image className="w-8 h-8 text-slate-500" />
+          </div>
+        )}
+
+        <div>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-all disabled:opacity-50"
+          >
+            <Upload className="w-4 h-4" />
+            {currentLogo ? 'Change Logo' : 'Upload Logo'}
+          </button>
+          <p className="text-xs text-slate-500 mt-1">JPEG, PNG, or WebP. Max 2MB.</p>
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-sm text-red-400">{error}</p>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
     </div>
   );
 }

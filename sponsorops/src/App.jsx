@@ -4,16 +4,22 @@ import {
   TrendingUp, Mail, Phone, Plus, Search, Filter,
   X, Edit2, Trash2, ExternalLink, BarChart3,
   FileText, Target, Briefcase, Award, ChevronRight,
-  AlertCircle, Star, MessageSquare, Bell, LogOut
+  AlertCircle, Star, MessageSquare, Bell, LogOut,
+  Settings, ChevronDown
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './AuthContext';
+import { TeamProvider, useTeam } from './TeamContext';
 import LoginPage from './LoginPage';
+import TeamSetup from './TeamSetup';
+import TeamSettings from './TeamSettings';
 import { logAudit } from './auditLog';
 import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm } from './components';
 
 function AppContent() {
   const { user, signOut } = useAuth();
+  const { currentTeam, teams, isAdmin, switchTeam } = useTeam();
+  console.log('Team Debug:', { currentTeam, teams, isAdmin });
   const [view, setView] = useState('dashboard');
   const [sponsors, setSponsors] = useState([]);
   const [interactions, setInteractions] = useState([]);
@@ -26,51 +32,59 @@ function AppContent() {
   const [showAddSponsor, setShowAddSponsor] = useState(false);
   const [showAddInteraction, setShowAddInteraction] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
+  const [showTeamSettings, setShowTeamSettings] = useState(false);
+  const [showTeamSwitcher, setShowTeamSwitcher] = useState(false);
 
-  // Load data on mount
+  // Load data when user or team changes
   useEffect(() => {
-    if (user) {
+    if (user && currentTeam) {
       loadData();
     }
-  }, [user]);
+  }, [user, currentTeam]);
 
   const loadData = async () => {
+    if (!currentTeam) return;
+
     setLoading(true);
 
     try {
-      // Load sponsors (exclude soft-deleted)
+      // Load sponsors (exclude soft-deleted, filter by team)
       const { data: sponsorsData, error: sponsorsError } = await supabase
         .from('sponsors')
         .select('*')
+        .eq('team_id', currentTeam.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (sponsorsError) throw sponsorsError;
       setSponsors(sponsorsData || []);
 
-      // Load interactions
+      // Load interactions (filter by team)
       const { data: interactionsData, error: interactionsError } = await supabase
         .from('interactions')
         .select('*')
+        .eq('team_id', currentTeam.id)
         .order('date', { ascending: false });
 
       if (interactionsError) throw interactionsError;
       setInteractions(interactionsData || []);
 
-      // Load tasks (exclude soft-deleted)
+      // Load tasks (exclude soft-deleted, filter by team)
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
+        .eq('team_id', currentTeam.id)
         .is('deleted_at', null)
         .order('due_date', { ascending: true });
 
       if (tasksError) throw tasksError;
       setTasks(tasksData || []);
 
-      // Load team info
+      // Load team info (filter by team)
       const { data: teamInfoData, error: teamInfoError } = await supabase
         .from('team_info')
         .select('*')
+        .eq('team_id', currentTeam.id)
         .limit(1)
         .single();
 
@@ -151,7 +165,8 @@ function AppContent() {
           website: sponsor.website,
           industry: sponsor.industry,
           notes: sponsor.notes,
-          created_by: user.id
+          created_by: user.id,
+          team_id: currentTeam.id
         };
 
         const { data, error } = await supabase
@@ -229,7 +244,8 @@ function AppContent() {
         type: interaction.type,
         date: interaction.date,
         notes: interaction.notes,
-        created_by: user.id
+        created_by: user.id,
+        team_id: currentTeam.id
       };
 
       const { data, error } = await supabase
@@ -303,7 +319,8 @@ function AppContent() {
           due_date: task.dueDate,
           priority: task.priority,
           completed: task.completed || false,
-          created_by: user.id
+          created_by: user.id,
+          team_id: currentTeam.id
         };
 
         const { data, error } = await supabase
@@ -378,6 +395,7 @@ function AppContent() {
       const { data: existing } = await supabase
         .from('team_info')
         .select('*')
+        .eq('team_id', currentTeam.id)
         .limit(1)
         .single();
 
@@ -388,7 +406,8 @@ function AppContent() {
         goals: info.goals,
         last_season_achievements: info.last_season_achievements || info.lastSeasonAchievements,
         last_season_story: info.last_season_story || info.lastSeasonStory,
-        updated_by: user.id
+        updated_by: user.id,
+        team_id: currentTeam.id
       };
 
       if (existing) {
@@ -489,14 +508,25 @@ function AppContent() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-orange-500 to-red-600 p-2 rounded-lg">
-                <Target className="w-6 h-6 text-white" />
-              </div>
+              {/* Team Logo or Default */}
+              {currentTeam?.logo_url ? (
+                <img
+                  src={currentTeam.logo_url}
+                  alt={currentTeam.name}
+                  className="w-10 h-10 rounded-lg object-cover"
+                />
+              ) : (
+                <div className="bg-gradient-to-br from-orange-500 to-red-600 p-2 rounded-lg">
+                  <Target className="w-6 h-6 text-white" />
+                </div>
+              )}
               <div>
                 <h1 className="text-2xl font-bold text-white font-outfit">
                   SponsorOps
                 </h1>
-                <p className="text-xs text-blue-300">FRC Sponsor Management</p>
+                <p className="text-xs text-blue-300">
+                  {currentTeam?.name || 'FRC Sponsor Management'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -521,6 +551,51 @@ function AppContent() {
                   </button>
                 ))}
               </nav>
+
+              {/* Team Switcher (if multiple teams) */}
+              {teams.length > 1 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowTeamSwitcher(!showTeamSwitcher)}
+                    className="flex items-center gap-2 px-3 py-2 text-blue-200 hover:bg-slate-800 rounded-lg transition-all"
+                  >
+                    <Users className="w-4 h-4" />
+                    <span className="text-sm">{currentTeam?.name}</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+
+                  {showTeamSwitcher && (
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 rounded-lg shadow-xl border border-slate-700 py-1 z-50">
+                      {teams.map(team => (
+                        <button
+                          key={team.id}
+                          onClick={() => {
+                            switchTeam(team.id);
+                            setShowTeamSwitcher(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-700 transition-all ${
+                            team.id === currentTeam?.id ? 'text-orange-400' : 'text-white'
+                          }`}
+                        >
+                          {team.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Team Settings (admin only) */}
+              {isAdmin && (
+                <button
+                  onClick={() => setShowTeamSettings(true)}
+                  className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+                  title="Team Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              )}
+
               {/* User menu */}
               <div className="flex items-center gap-3 pl-4 border-l border-slate-700">
                 <span className="text-sm text-blue-300">{user.email}</span>
@@ -637,8 +712,32 @@ function AppContent() {
           onSave={saveInteraction}
         />
       )}
+
+      {showTeamSettings && (
+        <TeamSettings onClose={() => setShowTeamSettings(false)} />
+      )}
     </div>
   );
+}
+
+// Inner App component that uses team context
+function AppWithTeam() {
+  const { loading: teamLoading, hasTeam, hasPendingInvites } = useTeam();
+
+  if (teamLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading team...</div>
+      </div>
+    );
+  }
+
+  // Show team setup if user has no team (but might have pending invites)
+  if (!hasTeam) {
+    return <TeamSetup />;
+  }
+
+  return <AppContent />;
 }
 
 // Main App wrapper with auth
@@ -657,7 +756,11 @@ export default function App() {
     return <LoginPage />;
   }
 
-  return <AppContent />;
+  return (
+    <TeamProvider>
+      <AppWithTeam />
+    </TeamProvider>
+  );
 }
 
 // Wrap the entire app export with AuthProvider
