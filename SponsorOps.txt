@@ -1,0 +1,8 @@
+SponsorOps:
+
+
+SupaBase password:
+
+bXTDycs22AEk4sfw7t96s3w45hs
+
+Note: If using the Postgres connection string, you will need to percent-encode the password
