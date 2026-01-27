@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Building2, Users, Calendar, CheckCircle2, Clock, 
+import {
+  Building2, Users, Calendar, CheckCircle2, Clock,
   TrendingUp, Mail, Phone, Plus, Search, Filter,
   X, Edit2, Trash2, ExternalLink, BarChart3,
   FileText, Target, Briefcase, Award, ChevronRight,
-  AlertCircle, Star, MessageSquare, Bell
+  AlertCircle, Star, MessageSquare, Bell, LogOut
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
+import { AuthProvider, useAuth } from './AuthContext';
+import LoginPage from './LoginPage';
+import { logAudit } from './auditLog';
 import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm } from './components';
 
-export default function App() {
+function AppContent() {
+  const { user, signOut } = useAuth();
   const [view, setView] = useState('dashboard');
   const [sponsors, setSponsors] = useState([]);
   const [interactions, setInteractions] = useState([]);
@@ -25,19 +29,22 @@ export default function App() {
 
   // Load data on mount
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) {
+      loadData();
+    }
+  }, [user]);
 
   const loadData = async () => {
     setLoading(true);
-    
+
     try {
-      // Load sponsors
+      // Load sponsors (exclude soft-deleted)
       const { data: sponsorsData, error: sponsorsError } = await supabase
         .from('sponsors')
         .select('*')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
-      
+
       if (sponsorsError) throw sponsorsError;
       setSponsors(sponsorsData || []);
 
@@ -46,16 +53,17 @@ export default function App() {
         .from('interactions')
         .select('*')
         .order('date', { ascending: false });
-      
+
       if (interactionsError) throw interactionsError;
       setInteractions(interactionsData || []);
 
-      // Load tasks
+      // Load tasks (exclude soft-deleted)
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
+        .is('deleted_at', null)
         .order('due_date', { ascending: true });
-      
+
       if (tasksError) throw tasksError;
       setTasks(tasksData || []);
 
@@ -65,11 +73,11 @@ export default function App() {
         .select('*')
         .limit(1)
         .single();
-      
+
       if (teamInfoError && teamInfoError.code !== 'PGRST116') {
         throw teamInfoError;
       }
-      
+
       setTeamInfo(teamInfoData || {
         season_year: '2025',
         new_tech: '',
@@ -90,45 +98,82 @@ export default function App() {
   const saveSponsor = async (sponsor) => {
     try {
       if (sponsor.id) {
+        // Fetch old values for audit
+        const { data: oldData } = await supabase
+          .from('sponsors')
+          .select('*')
+          .eq('id', sponsor.id)
+          .single();
+
+        const newValues = {
+          name: sponsor.name,
+          status: sponsor.status,
+          type: sponsor.type,
+          contact_name: sponsor.contactName,
+          contact_title: sponsor.contactTitle,
+          email: sponsor.email,
+          phone: sponsor.phone,
+          website: sponsor.website,
+          industry: sponsor.industry,
+          notes: sponsor.notes,
+          updated_at: new Date().toISOString(),
+          updated_by: user.id
+        };
+
         // Update existing
         const { error } = await supabase
           .from('sponsors')
-          .update({
-            name: sponsor.name,
-            status: sponsor.status,
-            type: sponsor.type,
-            contact_name: sponsor.contactName,
-            contact_title: sponsor.contactTitle,
-            email: sponsor.email,
-            phone: sponsor.phone,
-            website: sponsor.website,
-            industry: sponsor.industry,
-            notes: sponsor.notes,
-            updated_at: new Date().toISOString()
-          })
+          .update(newValues)
           .eq('id', sponsor.id);
-        
+
         if (error) throw error;
+
+        // Log audit
+        await logAudit({
+          userId: user.id,
+          userEmail: user.email,
+          tableName: 'sponsors',
+          recordId: sponsor.id,
+          operation: 'UPDATE',
+          oldValues: oldData,
+          newValues
+        });
       } else {
         // Insert new
-        const { error } = await supabase
+        const newValues = {
+          name: sponsor.name,
+          status: sponsor.status,
+          type: sponsor.type,
+          contact_name: sponsor.contactName,
+          contact_title: sponsor.contactTitle,
+          email: sponsor.email,
+          phone: sponsor.phone,
+          website: sponsor.website,
+          industry: sponsor.industry,
+          notes: sponsor.notes,
+          created_by: user.id
+        };
+
+        const { data, error } = await supabase
           .from('sponsors')
-          .insert([{
-            name: sponsor.name,
-            status: sponsor.status,
-            type: sponsor.type,
-            contact_name: sponsor.contactName,
-            contact_title: sponsor.contactTitle,
-            email: sponsor.email,
-            phone: sponsor.phone,
-            website: sponsor.website,
-            industry: sponsor.industry,
-            notes: sponsor.notes
-          }]);
-        
+          .insert([newValues])
+          .select()
+          .single();
+
         if (error) throw error;
+
+        // Log audit
+        await logAudit({
+          userId: user.id,
+          userEmail: user.email,
+          tableName: 'sponsors',
+          recordId: data.id,
+          operation: 'INSERT',
+          oldValues: null,
+          newValues
+        });
       }
-      
+
       await loadData();
     } catch (error) {
       console.error('Error saving sponsor:', error);
@@ -136,38 +181,76 @@ export default function App() {
     }
   };
 
+  // Soft delete sponsor (archive)
   const deleteSponsor = async (id) => {
-    if (confirm('Are you sure you want to delete this sponsor?')) {
+    if (confirm('Are you sure you want to archive this sponsor? It can be restored later.')) {
       try {
+        // Fetch current values for audit
+        const { data: oldData } = await supabase
+          .from('sponsors')
+          .select('*')
+          .eq('id', id)
+          .single();
+
         const { error } = await supabase
           .from('sponsors')
-          .delete()
+          .update({
+            deleted_at: new Date().toISOString(),
+            deleted_by: user.id
+          })
           .eq('id', id);
-        
+
         if (error) throw error;
-        
+
+        // Log audit
+        await logAudit({
+          userId: user.id,
+          userEmail: user.email,
+          tableName: 'sponsors',
+          recordId: id,
+          operation: 'ARCHIVE',
+          oldValues: oldData,
+          newValues: null
+        });
+
         await loadData();
         setSelectedSponsor(null);
       } catch (error) {
-        console.error('Error deleting sponsor:', error);
-        alert('Error deleting sponsor. Please try again.');
+        console.error('Error archiving sponsor:', error);
+        alert('Error archiving sponsor. Please try again.');
       }
     }
   };
 
   const saveInteraction = async (interaction) => {
     try {
-      const { error } = await supabase
+      const newValues = {
+        sponsor_id: interaction.sponsorId,
+        type: interaction.type,
+        date: interaction.date,
+        notes: interaction.notes,
+        created_by: user.id
+      };
+
+      const { data, error } = await supabase
         .from('interactions')
-        .insert([{
-          sponsor_id: interaction.sponsorId,
-          type: interaction.type,
-          date: interaction.date,
-          notes: interaction.notes
-        }]);
-      
+        .insert([newValues])
+        .select()
+        .single();
+
       if (error) throw error;
-      
+
+      // Log audit
+      await logAudit({
+        userId: user.id,
+        userEmail: user.email,
+        tableName: 'interactions',
+        recordId: data.id,
+        operation: 'INSERT',
+        oldValues: null,
+        newValues
+      });
+
       await loadData();
     } catch (error) {
       console.error('Error saving interaction:', error);
@@ -178,34 +261,71 @@ export default function App() {
   const saveTask = async (task) => {
     try {
       if (task.id) {
+        // Fetch old values for audit
+        const { data: oldData } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('id', task.id)
+          .single();
+
+        const newValues = {
+          sponsor_id: task.sponsorId || task.sponsor_id,
+          description: task.description,
+          due_date: task.dueDate || task.due_date,
+          priority: task.priority,
+          completed: task.completed,
+          updated_by: user.id
+        };
+
         // Update
         const { error } = await supabase
           .from('tasks')
-          .update({
-            sponsor_id: task.sponsorId || task.sponsor_id,
-            description: task.description,
-            due_date: task.dueDate || task.due_date,
-            priority: task.priority,
-            completed: task.completed
-          })
+          .update(newValues)
           .eq('id', task.id);
-        
+
         if (error) throw error;
+
+        // Log audit
+        await logAudit({
+          userId: user.id,
+          userEmail: user.email,
+          tableName: 'tasks',
+          recordId: task.id,
+          operation: 'UPDATE',
+          oldValues: oldData,
+          newValues
+        });
       } else {
         // Insert
-        const { error } = await supabase
+        const newValues = {
+          sponsor_id: task.sponsorId,
+          description: task.description,
+          due_date: task.dueDate,
+          priority: task.priority,
+          completed: task.completed || false,
+          created_by: user.id
+        };
+
+        const { data, error } = await supabase
           .from('tasks')
-          .insert([{
-            sponsor_id: task.sponsorId,
-            description: task.description,
-            due_date: task.dueDate,
-            priority: task.priority,
-            completed: task.completed || false
-          }]);
-        
+          .insert([newValues])
+          .select()
+          .single();
+
         if (error) throw error;
+
+        // Log audit
+        await logAudit({
+          userId: user.id,
+          userEmail: user.email,
+          tableName: 'tasks',
+          recordId: data.id,
+          operation: 'INSERT',
+          oldValues: null,
+          newValues
+        });
       }
-      
+
       await loadData();
     } catch (error) {
       console.error('Error saving task:', error);
@@ -213,49 +333,116 @@ export default function App() {
     }
   };
 
+  // Soft delete task (archive)
+  const deleteTask = async (id) => {
+    if (confirm('Archive this task?')) {
+      try {
+        // Fetch current values for audit
+        const { data: oldData } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        const { error } = await supabase
+          .from('tasks')
+          .update({
+            deleted_at: new Date().toISOString(),
+            deleted_by: user.id
+          })
+          .eq('id', id);
+
+        if (error) throw error;
+
+        // Log audit
+        await logAudit({
+          userId: user.id,
+          userEmail: user.email,
+          tableName: 'tasks',
+          recordId: id,
+          operation: 'ARCHIVE',
+          oldValues: oldData,
+          newValues: null
+        });
+
+        await loadData();
+      } catch (error) {
+        console.error('Error archiving task:', error);
+        alert('Error archiving task. Please try again.');
+      }
+    }
+  };
+
   const saveTeamInfo = async (info) => {
     try {
       const { data: existing } = await supabase
         .from('team_info')
-        .select('id')
+        .select('*')
         .limit(1)
         .single();
+
+      const newValues = {
+        season_year: info.season_year || info.seasonYear,
+        new_tech: info.new_tech || info.newTech,
+        team_changes: info.team_changes || info.teamChanges,
+        goals: info.goals,
+        last_season_achievements: info.last_season_achievements || info.lastSeasonAchievements,
+        last_season_story: info.last_season_story || info.lastSeasonStory,
+        updated_by: user.id
+      };
 
       if (existing) {
         // Update
         const { error } = await supabase
           .from('team_info')
-          .update({
-            season_year: info.season_year || info.seasonYear,
-            new_tech: info.new_tech || info.newTech,
-            team_changes: info.team_changes || info.teamChanges,
-            goals: info.goals,
-            last_season_achievements: info.last_season_achievements || info.lastSeasonAchievements,
-            last_season_story: info.last_season_story || info.lastSeasonStory
-          })
+          .update(newValues)
           .eq('id', existing.id);
-        
+
         if (error) throw error;
+
+        // Log audit
+        await logAudit({
+          userId: user.id,
+          userEmail: user.email,
+          tableName: 'team_info',
+          recordId: existing.id,
+          operation: 'UPDATE',
+          oldValues: existing,
+          newValues
+        });
       } else {
         // Insert
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('team_info')
-          .insert([{
-            season_year: info.season_year || info.seasonYear,
-            new_tech: info.new_tech || info.newTech,
-            team_changes: info.team_changes || info.teamChanges,
-            goals: info.goals,
-            last_season_achievements: info.last_season_achievements || info.lastSeasonAchievements,
-            last_season_story: info.last_season_story || info.lastSeasonStory
-          }]);
-        
+          .insert([newValues])
+          .select()
+          .single();
+
         if (error) throw error;
+
+        // Log audit
+        await logAudit({
+          userId: user.id,
+          userEmail: user.email,
+          tableName: 'team_info',
+          recordId: data.id,
+          operation: 'INSERT',
+          oldValues: null,
+          newValues
+        });
       }
-      
+
       await loadData();
     } catch (error) {
       console.error('Error saving team info:', error);
       alert('Error saving team info. Please try again.');
+    }
+  };
+
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (error) {
+      console.error('Error signing out:', error);
     }
   };
 
@@ -312,27 +499,40 @@ export default function App() {
                 <p className="text-xs text-blue-300">FRC Sponsor Management</p>
               </div>
             </div>
-            <nav className="flex gap-2">
-              {[
-                { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
-                { id: 'sponsors', icon: Building2, label: 'Sponsors' },
-                { id: 'tasks', icon: CheckCircle2, label: 'Tasks' },
-                { id: 'team-info', icon: Award, label: 'Team Info' }
-              ].map(item => (
+            <div className="flex items-center gap-4">
+              <nav className="flex gap-2">
+                {[
+                  { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
+                  { id: 'sponsors', icon: Building2, label: 'Sponsors' },
+                  { id: 'tasks', icon: CheckCircle2, label: 'Tasks' },
+                  { id: 'team-info', icon: Award, label: 'Team Info' }
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setView(item.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                      view === item.id
+                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/50'
+                        : 'text-blue-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span className="font-medium">{item.label}</span>
+                  </button>
+                ))}
+              </nav>
+              {/* User menu */}
+              <div className="flex items-center gap-3 pl-4 border-l border-slate-700">
+                <span className="text-sm text-blue-300">{user.email}</span>
                 <button
-                  key={item.id}
-                  onClick={() => setView(item.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    view === item.id
-                      ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/50'
-                      : 'text-blue-200 hover:bg-slate-800'
-                  }`}
+                  onClick={handleSignOut}
+                  className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+                  title="Sign out"
                 >
-                  <item.icon className="w-4 h-4" />
-                  <span className="font-medium">{item.label}</span>
+                  <LogOut className="w-4 h-4" />
                 </button>
-              ))}
-            </nav>
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -381,12 +581,7 @@ export default function App() {
             sponsors={sponsors}
             onAddTask={() => setShowAddTask(true)}
             onUpdateTask={saveTask}
-            onDeleteTask={async (id) => {
-              if (confirm('Delete this task?')) {
-                await supabase.from('tasks').delete().eq('id', id);
-                await loadData();
-              }
-            }}
+            onDeleteTask={deleteTask}
           />
         )}
 
@@ -443,6 +638,34 @@ export default function App() {
         />
       )}
     </div>
+  );
+}
+
+// Main App wrapper with auth
+export default function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return <AppContent />;
+}
+
+// Wrap the entire app export with AuthProvider
+export function AppWithAuth() {
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   );
 }
 
@@ -614,7 +837,7 @@ function SponsorsView({ sponsors, searchQuery, setSearchQuery, statusFilter, set
                 </div>
               </div>
             </div>
-            
+
             <div className="space-y-2 mb-4">
               <div className="flex items-center gap-2 text-sm text-slate-300">
                 <Users className="w-4 h-4 text-slate-400" />
@@ -693,6 +916,7 @@ function TasksView({ tasks, sponsors, onAddTask, onUpdateTask, onDeleteTask }) {
                   <button
                     onClick={() => onDeleteTask(task.id)}
                     className="text-red-400 hover:text-red-300"
+                    title="Archive task"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

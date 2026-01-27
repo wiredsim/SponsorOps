@@ -188,7 +188,7 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
               <button onClick={onEdit} className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
                 <Edit2 className="w-5 h-5" />
               </button>
-              <button onClick={onDelete} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+              <button onClick={onDelete} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600" title="Archive sponsor">
                 <Trash2 className="w-5 h-5" />
               </button>
               <button onClick={onClose} className="p-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600">

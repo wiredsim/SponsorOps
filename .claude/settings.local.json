@@ -4,7 +4,8 @@
       "WebFetch(domain:sponsorops.netlify.app)",
       "Bash(dir:*)",
       "Bash(gh auth:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(gh repo create:*)"
     ]
   }
 }
