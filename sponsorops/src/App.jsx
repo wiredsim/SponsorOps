@@ -19,7 +19,6 @@ import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfo
 function AppContent() {
   const { user, signOut } = useAuth();
   const { currentTeam, teams, isAdmin, switchTeam } = useTeam();
-  console.log('Team Debug:', { currentTeam, teams, isAdmin });
   const [view, setView] = useState('dashboard');
   const [sponsors, setSponsors] = useState([]);
   const [interactions, setInteractions] = useState([]);
