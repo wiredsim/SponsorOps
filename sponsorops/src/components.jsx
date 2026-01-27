@@ -327,13 +327,46 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
   );
 }
 
+// Task category options
+const taskCategories = [
+  { value: 'general', label: 'General' },
+  { value: 'email', label: 'Email' },
+  { value: 'call', label: 'Phone Call' },
+  { value: 'meeting', label: 'Meeting' },
+  { value: 'follow-up', label: 'Follow-up' },
+  { value: 'research', label: 'Research' },
+  { value: 'visit', label: 'Site Visit' }
+];
+
+// Task status options
+const taskStatuses = [
+  { value: 'todo', label: 'To Do', color: 'bg-slate-500' },
+  { value: 'in_progress', label: 'In Progress', color: 'bg-blue-500' },
+  { value: 'blocked', label: 'Blocked', color: 'bg-red-500' },
+  { value: 'completed', label: 'Completed', color: 'bg-green-500' }
+];
+
 // Task Modal
-export function TaskModal({ sponsors, onClose, onSave }) {
-  const [formData, setFormData] = useState({
+export function TaskModal({ sponsors, teamMembers = [], onClose, onSave, task = null, currentUserId }) {
+  const isEditing = !!task;
+  const [formData, setFormData] = useState(task ? {
+    id: task.id,
+    sponsorId: task.sponsor_id || '',
+    description: task.description || '',
+    dueDate: task.due_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    priority: task.priority || 'medium',
+    status: task.status || 'todo',
+    category: task.category || 'general',
+    assignedTo: task.assigned_to || '',
+    completed: task.completed || false
+  } : {
     sponsorId: '',
     description: '',
     dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     priority: 'medium',
+    status: 'todo',
+    category: 'general',
+    assignedTo: currentUserId || '',
     completed: false
   });
 
@@ -345,30 +378,15 @@ export function TaskModal({ sponsors, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl max-w-md w-full border border-slate-700">
-        <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-          <h3 className="text-2xl font-bold text-white">Add Task</h3>
+      <div className="bg-slate-800 rounded-xl max-w-md w-full border border-slate-700 max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-slate-800 p-6 border-b border-slate-700 flex items-center justify-between">
+          <h3 className="text-2xl font-bold text-white">{isEditing ? 'Edit Task' : 'Add Task'}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-white">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-blue-300 mb-2">Sponsor</label>
-            <select
-              required
-              value={formData.sponsorId}
-              onChange={(e) => setFormData({...formData, sponsorId: e.target.value})}
-              className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-            >
-              <option value="">Select a sponsor</option>
-              {sponsors.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-blue-300 mb-2">Description *</label>
             <input
@@ -381,27 +399,87 @@ export function TaskModal({ sponsors, onClose, onSave }) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-blue-300 mb-2">Due Date</label>
-            <input
-              type="date"
-              value={formData.dueDate}
-              onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
-              className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-blue-300 mb-2">Category</label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({...formData, category: e.target.value})}
+                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+              >
+                {taskCategories.map(cat => (
+                  <option key={cat.value} value={cat.value}>{cat.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-blue-300 mb-2">Status</label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({...formData, status: e.target.value})}
+                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+              >
+                {taskStatuses.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-blue-300 mb-2">Priority</label>
+            <label className="block text-sm font-medium text-blue-300 mb-2">Assigned To</label>
             <select
-              value={formData.priority}
-              onChange={(e) => setFormData({...formData, priority: e.target.value})}
+              value={formData.assignedTo}
+              onChange={(e) => setFormData({...formData, assignedTo: e.target.value})}
               className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
             >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
+              <option value="">Unassigned</option>
+              {teamMembers.map(member => (
+                <option key={member.id} value={member.id}>
+                  {member.display_name || member.email}
+                </option>
+              ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-blue-300 mb-2">Sponsor (optional)</label>
+            <select
+              value={formData.sponsorId}
+              onChange={(e) => setFormData({...formData, sponsorId: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+            >
+              <option value="">No sponsor</option>
+              {sponsors.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-blue-300 mb-2">Due Date</label>
+              <input
+                type="date"
+                value={formData.dueDate}
+                onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
+                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-blue-300 mb-2">Priority</label>
+              <select
+                value={formData.priority}
+                onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">
@@ -409,7 +487,7 @@ export function TaskModal({ sponsors, onClose, onSave }) {
               type="submit"
               className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg hover:shadow-orange-500/50 transition-all"
             >
-              Create Task
+              {isEditing ? 'Update Task' : 'Create Task'}
             </button>
             <button
               type="button"
@@ -424,6 +502,9 @@ export function TaskModal({ sponsors, onClose, onSave }) {
     </div>
   );
 }
+
+// Export task options for use in other components
+export { taskCategories, taskStatuses };
 
 // Interaction Modal
 export function InteractionModal({ sponsor, onClose, onSave }) {

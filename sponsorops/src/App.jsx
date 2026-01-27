@@ -5,7 +5,8 @@ import {
   X, Edit2, Trash2, ExternalLink, BarChart3,
   FileText, Target, Briefcase, Award, ChevronRight,
   AlertCircle, Star, MessageSquare, Bell, LogOut,
-  Settings, ChevronDown
+  Settings, ChevronDown, User, PlayCircle, PauseCircle,
+  Circle, AlertOctagon
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -14,7 +15,7 @@ import LoginPage from './LoginPage';
 import TeamSetup from './TeamSetup';
 import TeamSettings from './TeamSettings';
 import { logAudit } from './auditLog';
-import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm } from './components';
+import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm, taskCategories, taskStatuses } from './components';
 
 function AppContent() {
   const { user, signOut } = useAuth();
@@ -33,6 +34,9 @@ function AppContent() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [showTeamSettings, setShowTeamSettings] = useState(false);
   const [showTeamSwitcher, setShowTeamSwitcher] = useState(false);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [editingTask, setEditingTask] = useState(null);
+  const [taskFilter, setTaskFilter] = useState('all'); // 'all', 'mine', 'unassigned'
 
   // Load data when user or team changes
   useEffect(() => {
@@ -99,6 +103,31 @@ function AppContent() {
         last_season_achievements: '',
         last_season_story: ''
       });
+
+      // Load team members from user_profiles
+      const { data: membersData, error: membersError } = await supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('team_id', currentTeam.id);
+
+      if (membersError) throw membersError;
+
+      if (membersData && membersData.length > 0) {
+        const memberIds = membersData.map(m => m.user_id);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .in('id', memberIds);
+
+        if (profilesError) {
+          console.warn('Could not load user profiles:', profilesError);
+          setTeamMembers([]);
+        } else {
+          setTeamMembers(profilesData || []);
+        }
+      } else {
+        setTeamMembers([]);
+      }
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -275,6 +304,10 @@ function AppContent() {
 
   const saveTask = async (task) => {
     try {
+      // Handle status-based completion
+      const isCompleted = task.status === 'completed';
+      const wasCompleted = task.id ? tasks.find(t => t.id === task.id)?.status === 'completed' : false;
+
       if (task.id) {
         // Fetch old values for audit
         const { data: oldData } = await supabase
@@ -284,11 +317,16 @@ function AppContent() {
           .single();
 
         const newValues = {
-          sponsor_id: task.sponsorId || task.sponsor_id,
+          sponsor_id: task.sponsorId || task.sponsor_id || null,
           description: task.description,
           due_date: task.dueDate || task.due_date,
           priority: task.priority,
-          completed: task.completed,
+          status: task.status || 'todo',
+          category: task.category || 'general',
+          assigned_to: task.assignedTo || task.assigned_to || null,
+          completed: isCompleted,
+          completed_at: isCompleted && !wasCompleted ? new Date().toISOString() : (isCompleted ? oldData?.completed_at : null),
+          completed_by: isCompleted && !wasCompleted ? user.id : (isCompleted ? oldData?.completed_by : null),
           updated_by: user.id
         };
 
@@ -313,11 +351,16 @@ function AppContent() {
       } else {
         // Insert
         const newValues = {
-          sponsor_id: task.sponsorId,
+          sponsor_id: task.sponsorId || null,
           description: task.description,
           due_date: task.dueDate,
           priority: task.priority,
-          completed: task.completed || false,
+          status: task.status || 'todo',
+          category: task.category || 'general',
+          assigned_to: task.assignedTo || null,
+          completed: isCompleted,
+          completed_at: isCompleted ? new Date().toISOString() : null,
+          completed_by: isCompleted ? user.id : null,
           created_by: user.id,
           team_id: currentTeam.id
         };
@@ -342,6 +385,7 @@ function AppContent() {
         });
       }
 
+      setEditingTask(null);
       await loadData();
     } catch (error) {
       console.error('Error saving task:', error);
@@ -618,6 +662,8 @@ function AppContent() {
             stats={stats}
             sponsors={sponsors}
             tasks={tasks}
+            teamMembers={teamMembers}
+            currentUserId={user.id}
             onAddSponsor={() => {
               setShowAddSponsor(true);
               setSelectedSponsor(null);
@@ -627,6 +673,7 @@ function AppContent() {
               setView('sponsors');
             }}
             onUpdateTask={saveTask}
+            onViewTasks={() => setView('tasks')}
             statusOptions={statusOptions}
           />
         )}
@@ -653,7 +700,18 @@ function AppContent() {
           <TasksView
             tasks={tasks}
             sponsors={sponsors}
-            onAddTask={() => setShowAddTask(true)}
+            teamMembers={teamMembers}
+            currentUserId={user.id}
+            taskFilter={taskFilter}
+            setTaskFilter={setTaskFilter}
+            onAddTask={() => {
+              setEditingTask(null);
+              setShowAddTask(true);
+            }}
+            onEditTask={(task) => {
+              setEditingTask(task);
+              setShowAddTask(true);
+            }}
             onUpdateTask={saveTask}
             onDeleteTask={deleteTask}
           />
@@ -699,7 +757,13 @@ function AppContent() {
       {showAddTask && (
         <TaskModal
           sponsors={sponsors}
-          onClose={() => setShowAddTask(false)}
+          teamMembers={teamMembers}
+          currentUserId={user.id}
+          task={editingTask}
+          onClose={() => {
+            setShowAddTask(false);
+            setEditingTask(null);
+          }}
           onSave={saveTask}
         />
       )}
@@ -772,7 +836,15 @@ export function AppWithAuth() {
 }
 
 // Dashboard View Component
-function DashboardView({ stats, sponsors, tasks, onAddSponsor, onSelectSponsor, onUpdateTask, statusOptions }) {
+function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onAddSponsor, onSelectSponsor, onUpdateTask, onViewTasks, statusOptions }) {
+  const myTasks = tasks.filter(t => t.assigned_to === currentUserId && t.status !== 'completed');
+  const overdueTasks = tasks.filter(t => t.status !== 'completed' && new Date(t.due_date) < new Date());
+
+  const getMemberName = (userId) => {
+    const member = teamMembers.find(m => m.id === userId);
+    return member?.display_name || member?.email || 'Unassigned';
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -787,12 +859,13 @@ function DashboardView({ stats, sponsors, tasks, onAddSponsor, onSelectSponsor, 
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {[
           { label: 'Total Sponsors', value: stats.totalSponsors, icon: Building2, color: 'from-blue-500 to-blue-600' },
           { label: 'Active Sponsors', value: stats.activeSponsors, icon: Star, color: 'from-green-500 to-green-600' },
           { label: 'Prospects', value: stats.prospects, icon: Target, color: 'from-purple-500 to-purple-600' },
-          { label: 'Upcoming Tasks', value: stats.upcomingTasks, icon: Bell, color: 'from-orange-500 to-red-600' }
+          { label: 'My Tasks', value: myTasks.length, icon: User, color: 'from-orange-500 to-red-600' },
+          { label: 'Overdue', value: overdueTasks.length, icon: AlertCircle, color: overdueTasks.length > 0 ? 'from-red-500 to-red-600' : 'from-slate-500 to-slate-600' }
         ].map((stat, idx) => (
           <div key={idx} className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
             <div className="flex items-center justify-between mb-3">
@@ -806,8 +879,51 @@ function DashboardView({ stats, sponsors, tasks, onAddSponsor, onSelectSponsor, 
         ))}
       </div>
 
-      {/* Recent Activity & Upcoming Tasks */}
+      {/* My Tasks & Recent Sponsors */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* My Tasks */}
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <User className="w-5 h-5 text-orange-500" />
+              My Tasks
+            </h3>
+            <button
+              onClick={onViewTasks}
+              className="text-sm text-orange-400 hover:text-orange-300"
+            >
+              View All
+            </button>
+          </div>
+          <div className="space-y-3">
+            {myTasks.slice(0, 5).map(task => {
+              const sponsor = sponsors.find(s => s.id === task.sponsor_id);
+              const isOverdue = new Date(task.due_date) < new Date();
+              return (
+                <div key={task.id} className={`flex items-start gap-3 p-3 bg-slate-900/50 rounded-lg ${isOverdue ? 'border border-red-500/50' : ''}`}>
+                  <div className={`mt-1 w-3 h-3 rounded-full ${
+                    task.status === 'in_progress' ? 'bg-blue-500' :
+                    task.status === 'blocked' ? 'bg-red-500' : 'bg-slate-500'
+                  }`} />
+                  <div className="flex-1">
+                    <div className="text-white font-medium">{task.description}</div>
+                    {sponsor && (
+                      <div className="text-xs text-blue-300 mt-1">{sponsor.name}</div>
+                    )}
+                    <div className={`text-xs mt-1 ${isOverdue ? 'text-red-400' : 'text-slate-400'}`}>
+                      Due: {new Date(task.due_date).toLocaleDateString()}
+                      {isOverdue && ' (Overdue)'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {myTasks.length === 0 && (
+              <div className="text-center text-slate-400 py-8">No tasks assigned to you</div>
+            )}
+          </div>
+        </div>
+
         {/* Recent Sponsors */}
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
           <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -839,43 +955,44 @@ function DashboardView({ stats, sponsors, tasks, onAddSponsor, onSelectSponsor, 
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Upcoming Tasks */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-orange-500" />
-            Upcoming Tasks
-          </h3>
-          <div className="space-y-3">
-            {tasks.filter(t => !t.completed).slice(0, 5).map(task => {
-              const sponsor = sponsors.find(s => s.id === task.sponsor_id);
-              return (
-                <div key={task.id} className="flex items-start gap-3 p-3 bg-slate-900/50 rounded-lg">
-                  <input
-                    type="checkbox"
-                    checked={task.completed}
-                    onChange={async () => {
-                      await onUpdateTask({ ...task, completed: !task.completed });
-                    }}
-                    className="mt-1 w-4 h-4 rounded border-slate-600 text-orange-500 focus:ring-orange-500"
-                  />
-                  <div className="flex-1">
-                    <div className="text-white font-medium">{task.description}</div>
-                    {sponsor && (
-                      <div className="text-xs text-blue-300 mt-1">{sponsor.name}</div>
-                    )}
-                    <div className="text-xs text-slate-400 mt-1">
-                      Due: {new Date(task.due_date).toLocaleDateString()}
-                    </div>
+      {/* Team Tasks Overview */}
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <Clock className="w-5 h-5 text-orange-500" />
+          Team Tasks
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {tasks.filter(t => t.status !== 'completed').slice(0, 6).map(task => {
+            const sponsor = sponsors.find(s => s.id === task.sponsor_id);
+            const isOverdue = new Date(task.due_date) < new Date();
+            return (
+              <div key={task.id} className={`p-3 bg-slate-900/50 rounded-lg ${isOverdue ? 'border border-red-500/50' : ''}`}>
+                <div className="flex items-start justify-between mb-2">
+                  <div className={`px-2 py-0.5 rounded text-xs ${
+                    task.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400' :
+                    task.status === 'blocked' ? 'bg-red-500/20 text-red-400' :
+                    'bg-slate-500/20 text-slate-400'
+                  }`}>
+                    {task.status === 'in_progress' ? 'In Progress' : task.status === 'blocked' ? 'Blocked' : 'To Do'}
+                  </div>
+                  <div className={`text-xs ${isOverdue ? 'text-red-400' : 'text-slate-400'}`}>
+                    {new Date(task.due_date).toLocaleDateString()}
                   </div>
                 </div>
-              );
-            })}
-            {tasks.filter(t => !t.completed).length === 0 && (
-              <div className="text-center text-slate-400 py-8">No upcoming tasks</div>
-            )}
-          </div>
+                <div className="text-white font-medium text-sm mb-1">{task.description}</div>
+                <div className="flex items-center justify-between text-xs">
+                  {sponsor && <span className="text-blue-300">{sponsor.name}</span>}
+                  <span className="text-slate-500">{getMemberName(task.assigned_to)}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
+        {tasks.filter(t => t.status !== 'completed').length === 0 && (
+          <div className="text-center text-slate-400 py-8">No active tasks</div>
+        )}
       </div>
     </div>
   );
@@ -975,89 +1092,266 @@ function SponsorsView({ sponsors, searchQuery, setSearchQuery, statusFilter, set
 }
 
 // Tasks View Component
-function TasksView({ tasks, sponsors, onAddTask, onUpdateTask, onDeleteTask }) {
+function TasksView({ tasks, sponsors, teamMembers, currentUserId, taskFilter, setTaskFilter, onAddTask, onEditTask, onUpdateTask, onDeleteTask }) {
+  const getMemberName = (userId) => {
+    if (!userId) return 'Unassigned';
+    const member = teamMembers.find(m => m.id === userId);
+    return member?.display_name || member?.email || 'Unknown';
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'in_progress': return <PlayCircle className="w-4 h-4 text-blue-400" />;
+      case 'blocked': return <AlertOctagon className="w-4 h-4 text-red-400" />;
+      case 'completed': return <CheckCircle2 className="w-4 h-4 text-green-400" />;
+      default: return <Circle className="w-4 h-4 text-slate-400" />;
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'in_progress': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'blocked': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'completed': return 'bg-green-500/20 text-green-400 border-green-500/30';
+      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+    }
+  };
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high': return 'text-red-400';
+      case 'medium': return 'text-yellow-400';
+      default: return 'text-slate-400';
+    }
+  };
+
+  // Filter tasks
+  let filteredTasks = tasks;
+  if (taskFilter === 'mine') {
+    filteredTasks = tasks.filter(t => t.assigned_to === currentUserId);
+  } else if (taskFilter === 'unassigned') {
+    filteredTasks = tasks.filter(t => !t.assigned_to);
+  }
+
+  // Group by status
+  const todoTasks = filteredTasks.filter(t => t.status === 'todo' || (!t.status && !t.completed));
+  const inProgressTasks = filteredTasks.filter(t => t.status === 'in_progress');
+  const blockedTasks = filteredTasks.filter(t => t.status === 'blocked');
+  const completedTasks = filteredTasks.filter(t => t.status === 'completed' || t.completed);
+
+  const handleStatusChange = async (task, newStatus) => {
+    await onUpdateTask({
+      ...task,
+      status: newStatus,
+      completed: newStatus === 'completed'
+    });
+  };
+
+  const TaskCard = ({ task }) => {
+    const sponsor = sponsors.find(s => s.id === task.sponsor_id);
+    const isOverdue = task.status !== 'completed' && new Date(task.due_date) < new Date();
+
+    return (
+      <div className={`p-4 bg-slate-900/50 rounded-lg border ${isOverdue ? 'border-red-500/50' : 'border-transparent'} hover:border-slate-600 transition-all`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              {getStatusIcon(task.status)}
+              <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(task.status)}`}>
+                {task.status === 'in_progress' ? 'In Progress' :
+                 task.status === 'blocked' ? 'Blocked' :
+                 task.status === 'completed' ? 'Completed' : 'To Do'}
+              </span>
+              {task.category && task.category !== 'general' && (
+                <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-400">
+                  {task.category}
+                </span>
+              )}
+              <span className={`text-xs ${getPriorityColor(task.priority)}`}>
+                {task.priority === 'high' ? '!!!' : task.priority === 'medium' ? '!!' : '!'}
+              </span>
+            </div>
+
+            <div className={`text-white font-medium mb-2 ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>
+              {task.description}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              {sponsor && (
+                <span className="text-blue-300 flex items-center gap-1">
+                  <Building2 className="w-3 h-3" />
+                  {sponsor.name}
+                </span>
+              )}
+              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-400' : 'text-slate-400'}`}>
+                <Calendar className="w-3 h-3" />
+                {new Date(task.due_date).toLocaleDateString()}
+                {isOverdue && ' (Overdue)'}
+              </span>
+              <span className="text-slate-500 flex items-center gap-1">
+                <User className="w-3 h-3" />
+                {getMemberName(task.assigned_to)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => onEditTask(task)}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-all"
+              title="Edit task"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => onDeleteTask(task.id)}
+              className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition-all"
+              title="Archive task"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Quick status change buttons */}
+        {task.status !== 'completed' && (
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-700/50">
+            <span className="text-xs text-slate-500">Move to:</span>
+            {task.status !== 'todo' && (
+              <button
+                onClick={() => handleStatusChange(task, 'todo')}
+                className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all"
+              >
+                To Do
+              </button>
+            )}
+            {task.status !== 'in_progress' && (
+              <button
+                onClick={() => handleStatusChange(task, 'in_progress')}
+                className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all"
+              >
+                In Progress
+              </button>
+            )}
+            {task.status !== 'blocked' && (
+              <button
+                onClick={() => handleStatusChange(task, 'blocked')}
+                className="text-xs px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+              >
+                Blocked
+              </button>
+            )}
+            <button
+              onClick={() => handleStatusChange(task, 'completed')}
+              className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all"
+            >
+              Complete
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <h2 className="text-3xl font-bold text-white">Tasks & Reminders</h2>
-        <button
-          onClick={onAddTask}
-          className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-600 text-white px-4 py-2 rounded-lg hover:shadow-lg hover:shadow-orange-500/50 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Add Task
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Filter buttons */}
+          <div className="flex items-center bg-slate-800/50 rounded-lg p-1">
+            {[
+              { value: 'all', label: 'All Tasks' },
+              { value: 'mine', label: 'My Tasks' },
+              { value: 'unassigned', label: 'Unassigned' }
+            ].map(filter => (
+              <button
+                key={filter.value}
+                onClick={() => setTaskFilter(filter.value)}
+                className={`px-3 py-1.5 rounded-md text-sm transition-all ${
+                  taskFilter === filter.value
+                    ? 'bg-orange-500 text-white'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={onAddTask}
+            className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-600 text-white px-4 py-2 rounded-lg hover:shadow-lg hover:shadow-orange-500/50 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Add Task
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Active Tasks */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
-          <h3 className="text-xl font-bold text-white mb-4">Active Tasks</h3>
+      {/* Kanban-style columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* To Do Column */}
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700/50">
+          <div className="flex items-center gap-2 mb-4">
+            <Circle className="w-5 h-5 text-slate-400" />
+            <h3 className="text-lg font-bold text-white">To Do</h3>
+            <span className="text-sm text-slate-400">({todoTasks.length})</span>
+          </div>
           <div className="space-y-3">
-            {tasks.filter(t => !t.completed).map(task => {
-              const sponsor = sponsors.find(s => s.id === task.sponsor_id);
-              return (
-                <div key={task.id} className="flex items-start gap-3 p-4 bg-slate-900/50 rounded-lg">
-                  <input
-                    type="checkbox"
-                    checked={task.completed}
-                    onChange={async () => {
-                      await onUpdateTask({ ...task, completed: !task.completed });
-                    }}
-                    className="mt-1 w-5 h-5 rounded border-slate-600 text-orange-500 focus:ring-orange-500"
-                  />
-                  <div className="flex-1">
-                    <div className="text-white font-medium mb-1">{task.description}</div>
-                    {sponsor && (
-                      <div className="text-sm text-blue-300 mb-1">{sponsor.name}</div>
-                    )}
-                    <div className="text-xs text-slate-400">
-                      Due: {new Date(task.due_date).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onDeleteTask(task.id)}
-                    className="text-red-400 hover:text-red-300"
-                    title="Archive task"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              );
-            })}
-            {tasks.filter(t => !t.completed).length === 0 && (
-              <div className="text-center text-slate-400 py-8">No active tasks</div>
+            {todoTasks.map(task => <TaskCard key={task.id} task={task} />)}
+            {todoTasks.length === 0 && (
+              <div className="text-center text-slate-500 py-6 text-sm">No tasks</div>
             )}
           </div>
         </div>
 
-        {/* Completed Tasks */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
-          <h3 className="text-xl font-bold text-white mb-4">Completed</h3>
+        {/* In Progress Column */}
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-blue-500/30">
+          <div className="flex items-center gap-2 mb-4">
+            <PlayCircle className="w-5 h-5 text-blue-400" />
+            <h3 className="text-lg font-bold text-white">In Progress</h3>
+            <span className="text-sm text-slate-400">({inProgressTasks.length})</span>
+          </div>
           <div className="space-y-3">
-            {tasks.filter(t => t.completed).map(task => {
-              const sponsor = sponsors.find(s => s.id === task.sponsor_id);
-              return (
-                <div key={task.id} className="flex items-start gap-3 p-4 bg-slate-900/50 rounded-lg opacity-60">
-                  <input
-                    type="checkbox"
-                    checked={task.completed}
-                    onChange={async () => {
-                      await onUpdateTask({ ...task, completed: !task.completed });
-                    }}
-                    className="mt-1 w-5 h-5 rounded border-slate-600 text-orange-500 focus:ring-orange-500"
-                  />
-                  <div className="flex-1">
-                    <div className="text-white font-medium mb-1 line-through">{task.description}</div>
-                    {sponsor && (
-                      <div className="text-sm text-blue-300 mb-1">{sponsor.name}</div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {tasks.filter(t => t.completed).length === 0 && (
-              <div className="text-center text-slate-400 py-8">No completed tasks</div>
+            {inProgressTasks.map(task => <TaskCard key={task.id} task={task} />)}
+            {inProgressTasks.length === 0 && (
+              <div className="text-center text-slate-500 py-6 text-sm">No tasks</div>
+            )}
+          </div>
+        </div>
+
+        {/* Blocked Column */}
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-red-500/30">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertOctagon className="w-5 h-5 text-red-400" />
+            <h3 className="text-lg font-bold text-white">Blocked</h3>
+            <span className="text-sm text-slate-400">({blockedTasks.length})</span>
+          </div>
+          <div className="space-y-3">
+            {blockedTasks.map(task => <TaskCard key={task.id} task={task} />)}
+            {blockedTasks.length === 0 && (
+              <div className="text-center text-slate-500 py-6 text-sm">No blocked tasks</div>
+            )}
+          </div>
+        </div>
+
+        {/* Completed Column */}
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-green-500/30">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle2 className="w-5 h-5 text-green-400" />
+            <h3 className="text-lg font-bold text-white">Completed</h3>
+            <span className="text-sm text-slate-400">({completedTasks.length})</span>
+          </div>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {completedTasks.slice(0, 10).map(task => <TaskCard key={task.id} task={task} />)}
+            {completedTasks.length === 0 && (
+              <div className="text-center text-slate-500 py-6 text-sm">No completed tasks</div>
+            )}
+            {completedTasks.length > 10 && (
+              <div className="text-center text-slate-500 py-2 text-sm">
+                +{completedTasks.length - 10} more
+              </div>
             )}
           </div>
         </div>
