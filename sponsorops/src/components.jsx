@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image, Mail, Search, Flame, ThermometerSun, Snowflake } from 'lucide-react';
+import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image, Mail, Search, Flame, ThermometerSun, Snowflake, CheckCircle2 } from 'lucide-react';
 
 // Sponsor Modal Component
 export function SponsorModal({ sponsor, onClose, onSave, statusOptions }) {
@@ -684,7 +684,7 @@ export function LogoUpload({ currentLogo, onUpload, disabled }) {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-all"
           >
             <Upload className="w-4 h-4" />
             {currentLogo ? 'Change Logo' : 'Upload Logo'}
@@ -711,12 +711,13 @@ export function LogoUpload({ currentLogo, onUpload, disabled }) {
 // Team Info Form
 export function TeamInfoForm({ teamInfo, onSave }) {
   const [formData, setFormData] = useState(teamInfo);
-  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave(formData);
-    setEditing(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   return (
@@ -729,8 +730,7 @@ export function TeamInfoForm({ teamInfo, onSave }) {
             type="text"
             value={formData.season_year || ''}
             onChange={(e) => setFormData({...formData, season_year: e.target.value})}
-            disabled={!editing}
-            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
             placeholder="e.g., 2025"
           />
         </div>
@@ -740,8 +740,7 @@ export function TeamInfoForm({ teamInfo, onSave }) {
             type="text"
             value={formData.team_size || ''}
             onChange={(e) => setFormData({...formData, team_size: e.target.value})}
-            disabled={!editing}
-            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
             placeholder="e.g., 35"
           />
         </div>
@@ -753,8 +752,7 @@ export function TeamInfoForm({ teamInfo, onSave }) {
           type="text"
           value={formData.team_location || ''}
           onChange={(e) => setFormData({...formData, team_location: e.target.value})}
-          disabled={!editing}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
           placeholder="e.g., Holland, Michigan"
         />
       </div>
@@ -771,9 +769,8 @@ export function TeamInfoForm({ teamInfo, onSave }) {
         <textarea
           value={formData.new_tech || formData.newTech}
           onChange={(e) => setFormData({...formData, new_tech: e.target.value, newTech: e.target.value})}
-          disabled={!editing}
-          rows={3}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                    rows={3}
+          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
           placeholder="e.g., Swerve drive, computer vision, advanced manufacturing..."
         />
       </div>
@@ -785,9 +782,8 @@ export function TeamInfoForm({ teamInfo, onSave }) {
         <textarea
           value={formData.team_changes || formData.teamChanges}
           onChange={(e) => setFormData({...formData, team_changes: e.target.value, teamChanges: e.target.value})}
-          disabled={!editing}
-          rows={3}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                    rows={3}
+          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
           placeholder="e.g., New leadership structure, mentorship programs..."
         />
       </div>
@@ -799,9 +795,8 @@ export function TeamInfoForm({ teamInfo, onSave }) {
         <textarea
           value={formData.goals}
           onChange={(e) => setFormData({...formData, goals: e.target.value})}
-          disabled={!editing}
-          rows={3}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                    rows={3}
+          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
           placeholder="e.g., Qualify for State Championship, win specific awards..."
         />
       </div>
@@ -813,9 +808,8 @@ export function TeamInfoForm({ teamInfo, onSave }) {
         <textarea
           value={formData.last_season_achievements || ''}
           onChange={(e) => setFormData({...formData, last_season_achievements: e.target.value})}
-          disabled={!editing}
-          rows={2}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                    rows={2}
+          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
           placeholder="e.g., Competed at X tournaments, won Y award..."
         />
       </div>
@@ -829,24 +823,21 @@ export function TeamInfoForm({ teamInfo, onSave }) {
           type="text"
           value={formData.achievement_1 || ''}
           onChange={(e) => setFormData({...formData, achievement_1: e.target.value})}
-          disabled={!editing}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
           placeholder="Competition achievement, e.g., Competed at State Championship"
         />
         <input
           type="text"
           value={formData.achievement_2 || ''}
           onChange={(e) => setFormData({...formData, achievement_2: e.target.value})}
-          disabled={!editing}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
           placeholder="Student impact, e.g., Grew to 35 students, 12 pursuing engineering"
         />
         <input
           type="text"
           value={formData.achievement_3 || ''}
           onChange={(e) => setFormData({...formData, achievement_3: e.target.value})}
-          disabled={!editing}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
           placeholder="Technical achievement, e.g., Implemented swerve drive and auto"
         />
       </div>
@@ -858,43 +849,26 @@ export function TeamInfoForm({ teamInfo, onSave }) {
         <textarea
           value={formData.last_season_story || formData.lastSeasonStory}
           onChange={(e) => setFormData({...formData, last_season_story: e.target.value, lastSeasonStory: e.target.value})}
-          disabled={!editing}
-          rows={3}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                    rows={3}
+          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
           placeholder="e.g., 'Competed strongly at 3 tournaments, came within 2 spots of State Championship qualification'"
         />
       </div>
 
       <div className="flex gap-3">
-        {editing ? (
-          <>
-            <button
-              type="submit"
-              className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg hover:shadow-orange-500/50 transition-all"
-            >
-              Save Changes
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setFormData(teamInfo);
-                setEditing(false);
-              }}
-              className="px-6 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-all"
-            >
-              Cancel
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg hover:shadow-orange-500/50 transition-all"
-          >
-            <Edit2 className="w-4 h-4" />
-            Edit Team Info
-          </button>
-        )}
+        <button
+          type="submit"
+          className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg hover:shadow-orange-500/50 transition-all"
+        >
+          {saved ? (
+            <>
+              <CheckCircle2 className="w-4 h-4" />
+              Saved!
+            </>
+          ) : (
+            'Save Changes'
+          )}
+        </button>
       </div>
     </form>
   );
