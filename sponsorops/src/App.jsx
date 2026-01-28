@@ -47,6 +47,8 @@ function AppContent() {
   const [showDetectiveWorksheet, setShowDetectiveWorksheet] = useState(false);
   const [customPlaybooks, setCustomPlaybooks] = useState([]);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [emailQueue, setEmailQueue] = useState([]);
+  const [showEmailQueueModal, setShowEmailQueueModal] = useState(false);
 
   // Load data when user or team changes
   useEffect(() => {
@@ -150,6 +152,18 @@ function AppContent() {
         console.warn('Could not load playbooks:', playbooksError);
       }
       setCustomPlaybooks(playbooksData || []);
+
+      // Load pending email queue
+      const { data: emailQueueData, error: emailQueueError } = await supabase
+        .from('email_queue')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (emailQueueError && emailQueueError.code !== 'PGRST116') {
+        console.warn('Could not load email queue:', emailQueueError);
+      }
+      setEmailQueue(emailQueueData || []);
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -665,7 +679,6 @@ function AppContent() {
                   { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
                   { id: 'sponsors', icon: Building2, label: 'Sponsors' },
                   { id: 'tasks', icon: CheckCircle2, label: 'Tasks' },
-                  { id: 'email-queue', icon: Inbox, label: 'Email Queue' },
                   { id: 'playbook', icon: BookOpen, label: 'Playbook' },
                   { id: 'team-specs', icon: Award, label: 'Team Specs' }
                 ].map(item => (
@@ -771,6 +784,8 @@ function AppContent() {
             onUpdateTask={saveTask}
             onViewTasks={() => setView('tasks')}
             statusOptions={statusOptions}
+            emailQueue={emailQueue}
+            onOpenEmailQueue={() => setShowEmailQueueModal(true)}
           />
         )}
 
@@ -811,19 +826,6 @@ function AppContent() {
             onUpdateTask={saveTask}
             onDeleteTask={deleteTask}
           />
-        )}
-
-        {/* Email Queue View */}
-        {view === 'email-queue' && (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-white">Email Queue</h2>
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
-              <EmailQueue
-                sponsors={sponsors}
-                onInteractionLogged={loadData}
-              />
-            </div>
-          </div>
         )}
 
         {/* Playbook View */}
@@ -998,6 +1000,32 @@ function AppContent() {
       {showAccountSettings && (
         <AccountSettings onClose={() => setShowAccountSettings(false)} />
       )}
+
+      {/* Email Queue Modal */}
+      {showEmailQueueModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-slate-700">
+            <div className="sticky top-0 bg-slate-800 p-6 border-b border-slate-700 flex items-center justify-between">
+              <h3 className="text-2xl font-bold text-white">Email Queue</h3>
+              <button
+                onClick={() => setShowEmailQueueModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6">
+              <EmailQueue
+                sponsors={sponsors}
+                onInteractionLogged={() => {
+                  loadData();
+                  setShowEmailQueueModal(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1055,7 +1083,7 @@ export function AppWithAuth() {
 }
 
 // Dashboard View Component
-function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onAddSponsor, onSelectSponsor, onUpdateTask, onViewTasks, statusOptions }) {
+function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onAddSponsor, onSelectSponsor, onUpdateTask, onViewTasks, statusOptions, emailQueue = [], onOpenEmailQueue }) {
   const myTasks = tasks.filter(t => t.assigned_to === currentUserId && t.status !== 'completed');
   const overdueTasks = tasks.filter(t => t.status !== 'completed' && isDateOverdue(t.due_date));
 
@@ -1097,6 +1125,29 @@ function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onA
           </div>
         ))}
       </div>
+
+      {/* Email Queue Alert */}
+      {emailQueue.length > 0 && (
+        <button
+          onClick={onOpenEmailQueue}
+          className="w-full flex items-center justify-between p-4 bg-orange-500/10 border border-orange-500/30 rounded-xl hover:bg-orange-500/20 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-500 rounded-lg">
+              <Inbox className="w-5 h-5 text-white" />
+            </div>
+            <div className="text-left">
+              <div className="text-white font-medium">
+                {emailQueue.length} email{emailQueue.length !== 1 ? 's' : ''} waiting for assignment
+              </div>
+              <div className="text-sm text-orange-300">
+                Click to review and assign to sponsors
+              </div>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-orange-400" />
+        </button>
+      )}
 
       {/* My Tasks & Recent Sponsors */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
