@@ -6,7 +6,7 @@ import {
   FileText, Target, Briefcase, Award, ChevronRight,
   AlertCircle, Star, MessageSquare, Bell, LogOut,
   Settings, ChevronDown, User, PlayCircle, PauseCircle,
-  Circle, AlertOctagon
+  Circle, AlertOctagon, BookOpen
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -19,6 +19,7 @@ import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfo
 import EmailComposer from './EmailComposer';
 import DetectiveWorksheet from './DetectiveWorksheet';
 import VariablesEditor from './VariablesEditor';
+import { PlaybookManager } from './PlaybookSystem';
 
 function AppContent() {
   const { user, signOut } = useAuth();
@@ -42,6 +43,7 @@ function AppContent() {
   const [taskFilter, setTaskFilter] = useState('all'); // 'all', 'mine', 'unassigned'
   const [showEmailComposer, setShowEmailComposer] = useState(false);
   const [showDetectiveWorksheet, setShowDetectiveWorksheet] = useState(false);
+  const [customPlaybooks, setCustomPlaybooks] = useState([]);
 
   // Load data when user or team changes
   useEffect(() => {
@@ -133,6 +135,18 @@ function AppContent() {
       } else {
         setTeamMembers([]);
       }
+
+      // Load custom playbooks (filter by team)
+      const { data: playbooksData, error: playbooksError } = await supabase
+        .from('playbooks')
+        .select('*')
+        .eq('team_id', currentTeam.id)
+        .order('created_at', { ascending: false });
+
+      if (playbooksError && playbooksError.code !== 'PGRST116') {
+        console.warn('Could not load playbooks:', playbooksError);
+      }
+      setCustomPlaybooks(playbooksData || []);
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -506,6 +520,71 @@ function AppContent() {
     }
   };
 
+  const savePlaybook = async (playbook) => {
+    try {
+      // Check if it's an existing custom playbook
+      const existing = customPlaybooks.find(p => p.id === playbook.id);
+
+      if (existing) {
+        // Update
+        const { error } = await supabase
+          .from('playbooks')
+          .update({
+            type: playbook.type,
+            title: playbook.title,
+            subject: playbook.subject,
+            content: playbook.content,
+            tips: playbook.tips,
+            stages: playbook.stages,
+            updated_at: new Date().toISOString(),
+            updated_by: user.id
+          })
+          .eq('id', playbook.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new
+        const { error } = await supabase
+          .from('playbooks')
+          .insert([{
+            id: playbook.id,
+            type: playbook.type,
+            title: playbook.title,
+            subject: playbook.subject,
+            content: playbook.content,
+            tips: playbook.tips,
+            stages: playbook.stages,
+            team_id: currentTeam.id,
+            created_by: user.id
+          }]);
+
+        if (error) throw error;
+      }
+
+      await loadData();
+    } catch (error) {
+      console.error('Error saving playbook:', error);
+      alert('Error saving playbook. Please try again.');
+    }
+  };
+
+  const deletePlaybook = async (id) => {
+    if (confirm('Delete this playbook?')) {
+      try {
+        const { error } = await supabase
+          .from('playbooks')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+        await loadData();
+      } catch (error) {
+        console.error('Error deleting playbook:', error);
+        alert('Error deleting playbook. Please try again.');
+      }
+    }
+  };
+
   const handleSignOut = async () => {
     const { error } = await signOut();
     if (error) {
@@ -583,6 +662,7 @@ function AppContent() {
                   { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
                   { id: 'sponsors', icon: Building2, label: 'Sponsors' },
                   { id: 'tasks', icon: CheckCircle2, label: 'Tasks' },
+                  { id: 'playbook', icon: BookOpen, label: 'Playbook' },
                   { id: 'team-info', icon: Award, label: 'Team Info' }
                 ].map(item => (
                   <button
@@ -719,6 +799,15 @@ function AppContent() {
             }}
             onUpdateTask={saveTask}
             onDeleteTask={deleteTask}
+          />
+        )}
+
+        {/* Playbook View */}
+        {view === 'playbook' && (
+          <PlaybookManager
+            playbooks={customPlaybooks}
+            onSave={savePlaybook}
+            onDelete={deletePlaybook}
           />
         )}
 
