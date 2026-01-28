@@ -1,0 +1,12 @@
+{
+  "name": "sponsorops-email-logger",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker to log sponsor email interactions via Resend webhooks",
+  "main": "src/index.js",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,7 @@
+name = "sponsorops-email-logger"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Supabase connection (set these via wrangler secret)
+# wrangler secret put SUPABASE_URL
+# wrangler secret put SUPABASE_SERVICE_KEY
