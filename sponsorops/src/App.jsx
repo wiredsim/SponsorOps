@@ -663,7 +663,7 @@ function AppContent() {
                   { id: 'sponsors', icon: Building2, label: 'Sponsors' },
                   { id: 'tasks', icon: CheckCircle2, label: 'Tasks' },
                   { id: 'playbook', icon: BookOpen, label: 'Playbook' },
-                  { id: 'team-info', icon: Award, label: 'Team Info' }
+                  { id: 'team-specs', icon: Award, label: 'Team Specs' }
                 ].map(item => (
                   <button
                     key={item.id}
@@ -808,13 +808,14 @@ function AppContent() {
             playbooks={customPlaybooks}
             onSave={savePlaybook}
             onDelete={deletePlaybook}
+            onNavigateToSpecs={() => setView('team-specs')}
           />
         )}
 
-        {/* Team Info View */}
-        {view === 'team-info' && teamInfo && (
+        {/* Team Specs View */}
+        {view === 'team-specs' && teamInfo && (
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-white">Team Information</h2>
+            <h2 className="text-3xl font-bold text-white">Team Specs</h2>
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50 max-w-3xl">
               <TeamInfoForm teamInfo={teamInfo} onSave={saveTeamInfo} VariablesEditor={VariablesEditor} />
             </div>

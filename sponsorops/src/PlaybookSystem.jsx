@@ -680,7 +680,7 @@ function PlaybookEditor({ playbook, onSave, onClose }) {
 }
 
 // Main Playbook Manager Component
-export function PlaybookManager({ playbooks = [], onSave, onDelete }) {
+export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateToSpecs }) {
   const [filter, setFilter] = useState('all');
   const [editingPlaybook, setEditingPlaybook] = useState(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -719,6 +719,38 @@ export function PlaybookManager({ playbooks = [], onSave, onDelete }) {
           <Plus className="w-4 h-4" />
           New Playbook
         </button>
+      </div>
+
+      {/* Merge Fields Helper */}
+      <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <div className="bg-blue-500/20 p-2 rounded-lg">
+            <Target className="w-5 h-5 text-blue-400" />
+          </div>
+          <div className="flex-1">
+            <h4 className="font-medium text-white mb-1">Personalize with Merge Fields</h4>
+            <p className="text-sm text-slate-300 mb-2">
+              Templates use <code className="px-1.5 py-0.5 bg-slate-800 rounded text-orange-400">{"{{variable_name}}"}</code> merge fields
+              that auto-fill with your team and sponsor info when composing emails.
+            </p>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="px-2 py-1 bg-slate-800 rounded text-slate-400">{"{{team_name}}"}</span>
+              <span className="px-2 py-1 bg-slate-800 rounded text-slate-400">{"{{contact_name}}"}</span>
+              <span className="px-2 py-1 bg-slate-800 rounded text-slate-400">{"{{past_achievements}}"}</span>
+              <span className="px-2 py-1 bg-slate-800 rounded text-slate-400">{"{{future_goals}}"}</span>
+              <span className="text-slate-500">and more...</span>
+            </div>
+            {onNavigateToSpecs && (
+              <button
+                onClick={onNavigateToSpecs}
+                className="mt-3 text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+              >
+                Set up your variables in Team Specs
+                <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
