@@ -2,8 +2,237 @@ import React, { useState } from 'react';
 import {
   X, Plus, Edit2, Trash2, Copy, Check, ChevronDown, ChevronUp,
   Mail, Phone, Users, Lightbulb, FileText, Play, BookOpen,
-  MessageSquare, Target, Clock, AlertCircle, CheckCircle2, Sparkles
+  MessageSquare, Target, Clock, AlertCircle, CheckCircle2, Sparkles,
+  HelpCircle, Building2, User, Settings, Zap
 } from 'lucide-react';
+
+// All available merge field variables
+export const variableReference = {
+  sponsor: {
+    title: 'Sponsor Variables',
+    description: 'Auto-filled from the sponsor record you\'re emailing',
+    icon: Building2,
+    color: 'blue',
+    variables: [
+      { key: 'company_name', description: 'Company/organization name', example: 'Acme Manufacturing' },
+      { key: 'contact_name', description: 'Contact person\'s name', example: 'Jane Smith' },
+      { key: 'contact_title', description: 'Contact\'s job title', example: 'Marketing Director' },
+      { key: 'contact_email', description: 'Contact\'s email address', example: 'jane@acme.com' },
+      { key: 'contact_phone', description: 'Contact\'s phone number', example: '555-123-4567' },
+      { key: 'industry', description: 'Company industry/sector', example: 'Manufacturing' },
+      { key: 'website', description: 'Company website URL', example: 'www.acme.com' },
+    ]
+  },
+  team: {
+    title: 'Team Variables',
+    description: 'Set up in Team Specs - basic team information',
+    icon: Users,
+    color: 'purple',
+    variables: [
+      { key: 'team_name', description: 'Your team\'s full name', example: 'Team 74 CHAOS' },
+      { key: 'team_number', description: 'FRC team number', example: '74' },
+      { key: 'team_location', description: 'City/town location', example: 'Holland, Michigan' },
+      { key: 'team_size', description: 'Number of students', example: '35' },
+      { key: 'season_year', description: 'Current competition year', example: '2025' },
+    ]
+  },
+  season: {
+    title: 'Season Variables',
+    description: 'Set up in Team Specs - this season\'s details',
+    icon: Zap,
+    color: 'orange',
+    variables: [
+      { key: 'new_tech', description: 'New technology/approach this season', example: 'Implementing swerve drive and computer vision' },
+      { key: 'team_changes', description: 'Changes from last year', example: 'Added 10 new members, new workshop space' },
+      { key: 'goals', description: 'This season\'s goals', example: 'Qualify for State Championship' },
+      { key: 'last_season_achievements', description: 'What you accomplished last year', example: 'Regional finalists, Innovation Award' },
+      { key: 'last_season_story', description: 'Story from last season', example: 'Our robot competed in 3 events...' },
+    ]
+  },
+  lists: {
+    title: 'List Variables',
+    description: 'Set up in Team Specs > Variables section - formatted as bullet points',
+    icon: FileText,
+    color: 'green',
+    variables: [
+      { key: 'past_achievements', description: 'What you accomplished WITH sponsor help', example: '- Competed at State Championship\n- Grew team to 45 students' },
+      { key: 'future_goals', description: 'What you CAN DO with sponsor support', example: '- Fund our Manufacturing Initiative\n- Send students to Championship' },
+      { key: 'team_facts', description: 'Quick facts about your team', example: '- 15 years competing\n- Alumni at NASA and SpaceX' },
+    ]
+  },
+  sender: {
+    title: 'Sender Variables',
+    description: 'You\'ll fill these in when composing - who\'s sending the email',
+    icon: User,
+    color: 'slate',
+    variables: [
+      { key: 'sender_name', description: 'Your name (the person sending)', example: 'Alex Johnson' },
+      { key: 'sender_email', description: 'Your email address', example: 'alex@team74.org' },
+      { key: 'personalization_sentence', description: 'WHY you\'re reaching out to THIS company', example: 'your commitment to local STEM education...' },
+      { key: 'meeting_details', description: 'When/where you\'re meeting', example: 'Tuesday at 2pm at your office' },
+    ]
+  },
+  custom: {
+    title: 'Custom Variables',
+    description: 'Create your own in Team Specs > Variables section',
+    icon: Settings,
+    color: 'amber',
+    variables: [
+      { key: 'robot_name', description: 'Example: your robot\'s name', example: 'Thunderbolt' },
+      { key: 'mentor_name', description: 'Example: lead mentor', example: 'Coach Williams' },
+      { key: 'any_key_you_want', description: 'Any custom variable you create', example: 'Your custom value' },
+    ]
+  }
+};
+
+// Variables Guide Component
+export function VariablesGuide({ onClose, onNavigateToSpecs }) {
+  const [expandedSection, setExpandedSection] = useState('sponsor');
+  const [copiedVar, setCopiedVar] = useState(null);
+
+  const handleCopy = async (varKey) => {
+    await navigator.clipboard.writeText(`{{${varKey}}}`);
+    setCopiedVar(varKey);
+    setTimeout(() => setCopiedVar(null), 1500);
+  };
+
+  const colorClasses = {
+    blue: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400', icon: 'text-blue-500' },
+    purple: { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400', icon: 'text-purple-500' },
+    orange: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-400', icon: 'text-orange-500' },
+    green: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', icon: 'text-green-500' },
+    slate: { bg: 'bg-slate-500/10', border: 'border-slate-500/30', text: 'text-slate-400', icon: 'text-slate-500' },
+    amber: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', icon: 'text-amber-500' },
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-slate-800 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-hidden border border-slate-700 flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-slate-700 flex items-center justify-between flex-shrink-0">
+          <div>
+            <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+              <HelpCircle className="w-6 h-6 text-orange-500" />
+              Variables Guide
+            </h3>
+            <p className="text-slate-400 text-sm mt-1">
+              How to use merge fields in your templates
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* How it works */}
+          <div className="bg-slate-900/50 rounded-lg p-4 mb-6">
+            <h4 className="font-medium text-white mb-2">How Variables Work</h4>
+            <p className="text-slate-300 text-sm mb-3">
+              Variables are placeholders in your templates that get replaced with real data when you compose an email.
+              Write them as <code className="px-1.5 py-0.5 bg-slate-800 rounded text-orange-400">{"{{variable_name}}"}</code> and
+              they'll auto-fill with sponsor info, team details, or custom values.
+            </p>
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400">Template:</span>
+                <code className="px-2 py-1 bg-slate-800 rounded text-white">{"Dear {{contact_name}},"}</code>
+              </div>
+              <span className="text-slate-500">→</span>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400">Result:</span>
+                <code className="px-2 py-1 bg-green-500/20 rounded text-green-300">Dear Jane Smith,</code>
+              </div>
+            </div>
+          </div>
+
+          {/* Variable Categories */}
+          {Object.entries(variableReference).map(([key, category]) => {
+            const Icon = category.icon;
+            const colors = colorClasses[category.color];
+            const isExpanded = expandedSection === key;
+
+            return (
+              <div key={key} className={`rounded-xl border ${colors.border} overflow-hidden`}>
+                <button
+                  onClick={() => setExpandedSection(isExpanded ? null : key)}
+                  className={`w-full p-4 flex items-center gap-3 ${colors.bg} hover:bg-white/5 transition-colors`}
+                >
+                  <div className={`p-2 rounded-lg ${colors.bg}`}>
+                    <Icon className={`w-5 h-5 ${colors.icon}`} />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <h4 className={`font-medium ${colors.text}`}>{category.title}</h4>
+                    <p className="text-sm text-slate-400">{category.description}</p>
+                  </div>
+                  <span className="text-sm text-slate-500">{category.variables.length} variables</span>
+                  {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                </button>
+
+                {isExpanded && (
+                  <div className="p-4 pt-0 space-y-2">
+                    {category.variables.map((v) => (
+                      <div key={v.key} className="flex items-start gap-3 p-3 bg-slate-900/50 rounded-lg">
+                        <button
+                          onClick={() => handleCopy(v.key)}
+                          className="flex-shrink-0 px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-orange-400 font-mono text-sm transition-colors"
+                          title="Click to copy"
+                        >
+                          {copiedVar === v.key ? (
+                            <span className="text-green-400 flex items-center gap-1">
+                              <Check className="w-3 h-3" /> copied
+                            </span>
+                          ) : (
+                            `{{${v.key}}}`
+                          )}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm">{v.description}</p>
+                          <p className="text-slate-500 text-xs mt-1">Example: {v.example}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Setup CTA */}
+          {onNavigateToSpecs && (
+            <div className="bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-500/30 rounded-xl p-4 mt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium text-white">Set up your variables</h4>
+                  <p className="text-sm text-slate-300 mt-1">
+                    Configure your team info, achievements, and goals in Team Specs
+                  </p>
+                </div>
+                <button
+                  onClick={() => { onNavigateToSpecs(); onClose(); }}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                >
+                  Go to Team Specs
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-slate-700 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Playbook types with icons and colors
 const playbookTypes = {
@@ -684,12 +913,23 @@ export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateTo
   const [filter, setFilter] = useState('all');
   const [editingPlaybook, setEditingPlaybook] = useState(null);
   const [showEditor, setShowEditor] = useState(false);
+  const [showVariablesGuide, setShowVariablesGuide] = useState(false);
 
-  // Combine default playbooks with custom ones
+  // Combine default playbooks with custom ones, sorted by type
+  const typeOrder = ['email', 'phone', 'meeting', 'tip'];
   const allPlaybooks = [
     ...defaultPlaybooks,
     ...playbooks.filter(p => !p.isDefault)
-  ];
+  ].sort((a, b) => {
+    // First sort by type
+    const typeA = typeOrder.indexOf(a.type);
+    const typeB = typeOrder.indexOf(b.type);
+    if (typeA !== typeB) return typeA - typeB;
+    // Within same type, defaults come first
+    if (a.isDefault && !b.isDefault) return -1;
+    if (!a.isDefault && b.isDefault) return 1;
+    return 0;
+  });
 
   const filteredPlaybooks = filter === 'all'
     ? allPlaybooks
@@ -740,15 +980,24 @@ export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateTo
               <span className="px-2 py-1 bg-slate-800 rounded text-slate-400">{"{{future_goals}}"}</span>
               <span className="text-slate-500">and more...</span>
             </div>
-            {onNavigateToSpecs && (
+            <div className="flex items-center gap-4 mt-3">
               <button
-                onClick={onNavigateToSpecs}
-                className="mt-3 text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                onClick={() => setShowVariablesGuide(true)}
+                className="text-sm text-orange-400 hover:text-orange-300 flex items-center gap-1"
               >
-                Set up your variables in Team Specs
-                <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
+                <HelpCircle className="w-4 h-4" />
+                View All Variables
               </button>
-            )}
+              {onNavigateToSpecs && (
+                <button
+                  onClick={onNavigateToSpecs}
+                  className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                >
+                  Set up in Team Specs
+                  <ChevronDown className="w-4 h-4 rotate-[-90deg]" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -798,6 +1047,14 @@ export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateTo
           playbook={editingPlaybook}
           onSave={handleSave}
           onClose={() => { setShowEditor(false); setEditingPlaybook(null); }}
+        />
+      )}
+
+      {/* Variables Guide Modal */}
+      {showVariablesGuide && (
+        <VariablesGuide
+          onClose={() => setShowVariablesGuide(false)}
+          onNavigateToSpecs={onNavigateToSpecs}
         />
       )}
     </div>

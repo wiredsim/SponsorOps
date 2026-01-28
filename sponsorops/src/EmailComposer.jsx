@@ -160,6 +160,12 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
     }
   }, [sponsor]);
 
+  // Format an array of variable items as bullet points
+  const formatVariableList = (items) => {
+    if (!items || items.length === 0) return null;
+    return items.map(item => `- ${item.value}`).join('\n');
+  };
+
   // Get merge field value from various sources
   const getMergeValue = (field) => {
     // Custom field override
@@ -168,12 +174,28 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
     // Sponsor data
     const sponsorMap = {
       'company_name': sponsor?.name,
-      'contact_name': sponsor?.contactName || '[Contact Name]',
-      'contact_title': sponsor?.contactTitle,
+      'contact_name': sponsor?.contact_name || sponsor?.contactName || '[Contact Name]',
+      'contact_title': sponsor?.contact_title || sponsor?.contactTitle,
       'contact_email': sponsor?.email,
+      'contact_phone': sponsor?.phone,
       'industry': sponsor?.industry,
+      'website': sponsor?.website,
     };
     if (sponsorMap[field]) return sponsorMap[field];
+
+    // Variables from VariablesEditor (stored in teamInfo.variables)
+    const variables = teamInfo?.variables || {};
+    const variablesMap = {
+      'past_achievements': formatVariableList(variables.past_achievements),
+      'future_goals': formatVariableList(variables.future_goals),
+      'team_facts': formatVariableList(variables.team_facts),
+    };
+    if (variablesMap[field]) return variablesMap[field];
+
+    // Custom variables from VariablesEditor
+    const customVars = variables.custom || [];
+    const customVar = customVars.find(v => v.key === field);
+    if (customVar) return customVar.value;
 
     // Team info (currentTeam for name/number, teamInfo for other fields)
     const teamMap = {
@@ -183,6 +205,11 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
       'team_size': teamInfo?.team_size || '[X]',
       'season_year': teamInfo?.season_year || '2025',
       'new_tech': teamInfo?.new_tech || '[describe what\'s new this season]',
+      'team_changes': teamInfo?.team_changes,
+      'goals': teamInfo?.goals,
+      'last_season_achievements': teamInfo?.last_season_achievements,
+      'last_season_story': teamInfo?.last_season_story,
+      // Legacy achievement fields (for backwards compatibility)
       'achievement_1': teamInfo?.achievement_1 || '[Specific achievement]',
       'achievement_2': teamInfo?.achievement_2 || '[Student impact]',
       'achievement_3': teamInfo?.achievement_3 || '[Cool accomplishment]',
