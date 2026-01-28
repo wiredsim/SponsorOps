@@ -14,9 +14,14 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    // Listen for auth changes
+    // Listen for auth changes - only update if user actually changed
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const newUser = session?.user ?? null;
+      setUser(prev => {
+        // Only update if user ID changed (prevents unnecessary re-renders on token refresh)
+        if (prev?.id === newUser?.id) return prev;
+        return newUser;
+      });
       setLoading(false);
     });
 

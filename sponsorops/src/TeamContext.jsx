@@ -12,9 +12,9 @@ export function TeamProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Load user's teams and pending invites when user changes
+  // Load user's teams and pending invites when user ID changes (not on every token refresh)
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       loadTeamsAndInvites();
     } else {
       setTeams([]);
@@ -22,7 +22,7 @@ export function TeamProvider({ children }) {
       setPendingInvites([]);
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   const loadTeamsAndInvites = async () => {
     setLoading(true);
