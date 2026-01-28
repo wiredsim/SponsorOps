@@ -4,153 +4,164 @@ This guide walks you through setting up email notifications for team invites.
 
 ## Overview
 
-When someone invites a new member to a team, an email is automatically sent to the invitee with:
-- Team name and number
-- Who invited them
-- Link to accept the invitation
+When someone invites a new member to a team:
+1. An invite record is created in `team_invites`
+2. The Edge Function triggers and sends an email via Supabase Auth
+3. New users get the "Invite User" email template you configured
+4. Existing users see the pending invite when they log in
 
-## Prerequisites
+## Quick Start (No Edge Function Needed)
 
-1. **Resend Account** (free tier: 100 emails/day)
-   - Sign up at https://resend.com
-   - Get your API key from the dashboard
+**For immediate testing**, you can skip the Edge Function setup entirely:
 
-2. **Supabase CLI** (optional, for local development)
-   ```bash
-   npm install -g supabase
-   ```
+1. Invite a user via Team Settings
+2. Share your app URL with them: `https://sponsorops.netlify.app`
+3. They sign up/log in with the invited email
+4. They'll see the pending invite and can accept it
 
-## Setup Steps
+The Edge Function just automates sending the invite email.
 
-### Step 1: Get a Resend API Key
+---
 
-1. Go to https://resend.com and create an account
-2. Go to **API Keys** in the dashboard
-3. Create a new API key
-4. Copy the key (starts with `re_`)
+## Full Setup: Automatic Invite Emails
 
-### Step 2: Verify Your Domain (Required for Production)
+### Step 1: Configure the Invite Email Template
 
-By default, Resend only lets you send from `onboarding@resend.dev`. For production:
+In **Supabase Dashboard** > **Authentication** > **Email Templates** > **Invite User**:
 
-1. In Resend dashboard, go to **Domains**
-2. Add your domain (e.g., `sponsorops.com`)
-3. Add the DNS records they provide
-4. Wait for verification (usually a few minutes)
+You can use template variables in the email:
+- `{{ .Email }}` - The invited email address
+- `{{ .ConfirmationURL }}` - The magic link to accept
+- `{{ .Data.team_name }}` - Team name (passed from Edge Function)
+- `{{ .Data.team_number }}` - Team number (passed from Edge Function)
 
-For testing, you can use `onboarding@resend.dev` as the sender.
+### Step 2: Deploy the Edge Function
 
-### Step 3: Deploy the Edge Function
+In **Supabase Dashboard**:
 
-#### Option A: Via Supabase Dashboard (Easiest)
+1. Go to **Edge Functions** → **New Function**
+2. Name: `send-invite-email`
+3. Copy contents from `supabase/functions/send-invite-email/index.ts`
+4. Click **Deploy**
 
-1. Go to your Supabase project dashboard
-2. Navigate to **Edge Functions**
-3. Click **New Function**
-4. Name it `send-invite-email`
-5. Copy the contents of `supabase/functions/send-invite-email/index.ts`
-6. Paste it into the editor
-7. Click **Deploy**
+### Step 3: Add the APP_URL Secret
 
-#### Option B: Via Supabase CLI
-
-```bash
-cd sponsorops
-supabase login
-supabase link --project-ref YOUR_PROJECT_REF
-supabase functions deploy send-invite-email
-```
-
-### Step 4: Set Environment Variables
-
-In Supabase Dashboard:
-
-1. Go to **Edge Functions** > **send-invite-email**
-2. Click **Manage Secrets**
-3. Add these secrets:
+In **Edge Functions** → **send-invite-email** → **Manage Secrets**:
 
 | Name | Value |
 |------|-------|
-| `RESEND_API_KEY` | Your Resend API key (re_...) |
-| `APP_URL` | Your app URL (e.g., `https://sponsorops.netlify.app`) |
+| `APP_URL` | `https://sponsorops.netlify.app` |
 
 Note: `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are automatically available.
 
-### Step 5: Create the Database Webhook
+### Step 4: Create Database Webhook
 
-This triggers the Edge Function whenever a new invite is created.
+Go to **Database** → **Webhooks** → **Create webhook**:
 
-1. Go to **Database** > **Webhooks** in Supabase Dashboard
-2. Click **Create a new webhook**
-3. Configure:
-   - **Name**: `send-invite-email`
-   - **Table**: `team_invites`
-   - **Events**: `INSERT`
-   - **Type**: `Supabase Edge Function`
-   - **Edge Function**: `send-invite-email`
-   - **HTTP Headers**: Leave default
-4. Click **Create webhook**
+- **Name**: `send-invite-email`
+- **Table**: `team_invites`
+- **Events**: ✓ INSERT
+- **Type**: Supabase Edge Function
+- **Function**: `send-invite-email`
 
-### Step 6: Update the From Address
+Click **Create webhook**.
 
-Edit the Edge Function to use your verified domain:
+---
 
-```typescript
-// Change this line in index.ts
-from: "SponsorOps <invites@sponsorops.com>",
+## How It Works
 
-// To this for testing:
-from: "SponsorOps <onboarding@resend.dev>",
-
-// Or your verified domain:
-from: "SponsorOps <invites@yourdomain.com>",
 ```
+Admin invites user@email.com
+         ↓
+  team_invites INSERT
+         ↓
+   Webhook triggers
+         ↓
+  Edge Function runs
+         ↓
+  ┌─────────────────────┐
+  │ User already exists?│
+  │                     │
+  │  YES → Skip email   │
+  │  (they'll see it    │
+  │   when they log in) │
+  │                     │
+  │  NO → Send Supabase │
+  │  Auth invite email  │
+  └─────────────────────┘
+         ↓
+ User clicks link in email
+         ↓
+ Redirected to app, logged in
+         ↓
+ Sees pending invite, accepts
+         ↓
+    Added to team!
+```
+
+---
 
 ## Testing
 
 1. Go to Team Settings in your app
 2. Invite a test email address
-3. Check if the email arrives
-4. Check Edge Function logs in Supabase Dashboard for any errors
+3. Check if the email arrives (check spam folder too)
+4. Click the link in the email
+5. You should land on the app and see the team invite
+
+### Check Edge Function Logs
+
+**Edge Functions** → **send-invite-email** → **Logs**
+
+Look for:
+- `Invite sent successfully to email@example.com for team Team Name`
+- Or any error messages
+
+---
 
 ## Troubleshooting
 
-### Email not sending?
+### Email not arriving?
 
-1. Check Edge Function logs: **Edge Functions** > **send-invite-email** > **Logs**
-2. Verify RESEND_API_KEY is set correctly
-3. Make sure the webhook is enabled and targeting the right function
+1. Check spam/junk folder
+2. Check Edge Function logs for errors
+3. Verify the webhook is enabled and pointing to the right function
+4. Make sure your Supabase email sending is configured (check Auth settings)
 
-### "Sender not verified" error?
+### "User already exists" in logs?
 
-- For testing, change the `from` address to `onboarding@resend.dev`
-- For production, verify your domain in Resend
+This is normal! Existing users don't get an invite email - they'll see the pending invite when they log in to the app.
 
-### Function timing out?
+### Function not triggering?
 
-- Check if Supabase URL and Service Role Key are accessible
-- Verify network connectivity to Resend API
+1. Check webhook is enabled: **Database** → **Webhooks**
+2. Check webhook targets correct function
+3. Try re-creating the webhook
 
-## Email Template Customization
+---
 
-The email template is embedded in the Edge Function. To customize:
+## Email Template Example
 
-1. Edit `supabase/functions/send-invite-email/index.ts`
-2. Modify the `emailHtml` template
-3. Re-deploy the function
+Here's a sample "Invite User" template using the team data:
+
+**Subject:**
+```
+You're invited to join {{ .Data.team_name }} on SponsorOps
+```
+
+**Body:**
+```html
+<h2>You're invited!</h2>
+<p>You've been invited to join <strong>{{ .Data.team_name }}</strong>
+   (Team #{{ .Data.team_number }}) on SponsorOps.</p>
+<p><a href="{{ .ConfirmationURL }}">Click here to accept</a></p>
+```
+
+---
 
 ## Costs
 
-- **Resend Free Tier**: 100 emails/day, 3,000 emails/month
+- **Supabase Auth Emails**: Included in free tier (limited volume)
 - **Supabase Edge Functions**: 500,000 invocations/month free
 
-For most FRC teams, the free tiers will be more than sufficient.
-
-## Alternative: Use Supabase's Built-in Email (Limited)
-
-If you don't want to set up Resend, you can use Supabase's Auth emails, but:
-- They only work for auth flows (signup, magic link, reset password)
-- They can't be triggered by custom events like team invites
-- They have Supabase branding
-
-For team invite emails, a third-party service like Resend is required.
+For most FRC teams, the free tier is plenty.
