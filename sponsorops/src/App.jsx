@@ -22,6 +22,7 @@ import VariablesEditor from './VariablesEditor';
 import { PlaybookManager } from './PlaybookSystem';
 import AccountSettings from './AccountSettings';
 import EmailQueue from './EmailQueue';
+import PhoneScriptPlayer from './PhoneScriptPlayer';
 
 function AppContent() {
   const { user, signOut } = useAuth();
@@ -49,6 +50,9 @@ function AppContent() {
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [emailQueue, setEmailQueue] = useState([]);
   const [showEmailQueueModal, setShowEmailQueueModal] = useState(false);
+  const [showPhoneScriptPlayer, setShowPhoneScriptPlayer] = useState(false);
+  const [activePhoneScript, setActivePhoneScript] = useState(null);
+  const [phoneScriptSponsor, setPhoneScriptSponsor] = useState(null);
 
   // Load data when user or team changes
   useEffect(() => {
@@ -871,6 +875,12 @@ function AppContent() {
                 console.error('Error restoring playbook:', error);
               }
             }}
+            onPlayPhoneScript={(playbook, sponsor) => {
+              setActivePhoneScript(playbook);
+              setPhoneScriptSponsor(sponsor);
+              setShowPhoneScriptPlayer(true);
+            }}
+            sponsors={sponsors}
           />
         )}
 
@@ -1025,6 +1035,37 @@ function AppContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Phone Script Player */}
+      {showPhoneScriptPlayer && activePhoneScript && (
+        <PhoneScriptPlayer
+          playbook={activePhoneScript}
+          sponsor={phoneScriptSponsor}
+          teamInfo={teamInfo}
+          onClose={() => {
+            setShowPhoneScriptPlayer(false);
+            setActivePhoneScript(null);
+            setPhoneScriptSponsor(null);
+          }}
+          onLogInteraction={async (interaction) => {
+            if (phoneScriptSponsor) {
+              try {
+                await supabase.from('interactions').insert([{
+                  sponsor_id: phoneScriptSponsor.id,
+                  team_id: currentTeam.id,
+                  type: interaction.type,
+                  notes: interaction.notes,
+                  date: new Date().toISOString().split('T')[0],
+                  created_by: user.id
+                }]);
+                await loadData();
+              } catch (error) {
+                console.error('Error logging interaction:', error);
+              }
+            }
+          }}
+        />
       )}
     </div>
   );

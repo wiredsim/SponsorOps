@@ -578,7 +578,7 @@ const colorClasses = {
 };
 
 // Playbook Card Component
-function PlaybookCard({ playbook, onEdit, onDelete, onUse, onCustomize, onHide }) {
+function PlaybookCard({ playbook, onEdit, onDelete, onUse, onCustomize, onHide, onPlayScript }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const typeConfig = playbookTypes[playbook.type];
@@ -676,6 +676,15 @@ function PlaybookCard({ playbook, onEdit, onDelete, onUse, onCustomize, onHide }
               {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
               {copied ? 'Copied!' : 'Copy'}
             </button>
+            {onPlayScript && (
+              <button
+                onClick={() => onPlayScript(playbook)}
+                className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
+              >
+                <Play className="w-4 h-4" />
+                Play Script
+              </button>
+            )}
             {onUse && (
               <button
                 onClick={() => onUse(playbook)}
@@ -928,11 +937,14 @@ function PlaybookEditor({ playbook, onSave, onClose }) {
 }
 
 // Main Playbook Manager Component
-export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateToSpecs, hiddenDefaults = [], onHideDefault, onRestoreDefault }) {
+export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateToSpecs, hiddenDefaults = [], onHideDefault, onRestoreDefault, onPlayPhoneScript, sponsors = [] }) {
   const [filter, setFilter] = useState('all');
   const [editingPlaybook, setEditingPlaybook] = useState(null);
   const [showEditor, setShowEditor] = useState(false);
   const [showVariablesGuide, setShowVariablesGuide] = useState(false);
+  const [showSponsorSelector, setShowSponsorSelector] = useState(false);
+  const [pendingPhoneScript, setPendingPhoneScript] = useState(null);
+  const [sponsorSearch, setSponsorSearch] = useState('');
 
   // Combine default playbooks with custom ones, sorted by type
   // Filter out hidden defaults
@@ -973,6 +985,28 @@ export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateTo
     setShowEditor(false);
     setEditingPlaybook(null);
   };
+
+  // Handle launching phone script player
+  const handlePlayPhoneScript = (playbook) => {
+    if (onPlayPhoneScript) {
+      setPendingPhoneScript(playbook);
+      setShowSponsorSelector(true);
+      setSponsorSearch('');
+    }
+  };
+
+  const handleSelectSponsorForScript = (sponsor) => {
+    if (onPlayPhoneScript && pendingPhoneScript) {
+      onPlayPhoneScript(pendingPhoneScript, sponsor);
+    }
+    setShowSponsorSelector(false);
+    setPendingPhoneScript(null);
+  };
+
+  const filteredSponsorsForScript = sponsors.filter(s =>
+    s.name.toLowerCase().includes(sponsorSearch.toLowerCase()) ||
+    (s.contact_name && s.contact_name.toLowerCase().includes(sponsorSearch.toLowerCase()))
+  );
 
   return (
     <div className="space-y-6">
@@ -1072,6 +1106,7 @@ export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateTo
             onDelete={onDelete}
             onCustomize={handleCustomize}
             onHide={onHideDefault}
+            onPlayScript={playbook.type === 'phone' ? handlePlayPhoneScript : null}
           />
         ))}
       </div>
@@ -1108,6 +1143,62 @@ export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateTo
           onSave={handleSave}
           onClose={() => { setShowEditor(false); setEditingPlaybook(null); }}
         />
+      )}
+
+      {/* Sponsor Selector for Phone Scripts */}
+      {showSponsorSelector && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-xl max-w-md w-full max-h-[80vh] overflow-hidden border border-slate-700">
+            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white">Select Sponsor to Call</h3>
+                <p className="text-sm text-slate-400">Who are you calling?</p>
+              </div>
+              <button
+                onClick={() => { setShowSponsorSelector(false); setPendingPhoneScript(null); }}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <input
+                type="text"
+                value={sponsorSearch}
+                onChange={(e) => setSponsorSearch(e.target.value)}
+                placeholder="Search sponsors..."
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm mb-3"
+                autoFocus
+              />
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {filteredSponsorsForScript.length === 0 ? (
+                  <div className="text-center text-slate-500 py-4">No sponsors found</div>
+                ) : (
+                  filteredSponsorsForScript.slice(0, 20).map(sponsor => (
+                    <button
+                      key={sponsor.id}
+                      onClick={() => handleSelectSponsorForScript(sponsor)}
+                      className="w-full text-left p-3 bg-slate-900/50 hover:bg-slate-700 rounded-lg transition-colors"
+                    >
+                      <div className="text-white font-medium">{sponsor.name}</div>
+                      {sponsor.contact_name && (
+                        <div className="text-sm text-slate-400">{sponsor.contact_name}</div>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-700">
+              <button
+                onClick={() => handleSelectSponsorForScript(null)}
+                className="w-full px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-sm"
+              >
+                Continue without selecting a sponsor
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Variables Guide Modal */}
