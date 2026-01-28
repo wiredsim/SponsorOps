@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image, Mail } from 'lucide-react';
+import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image, Mail, Search, Flame, ThermometerSun, Snowflake } from 'lucide-react';
 
 // Sponsor Modal Component
 export function SponsorModal({ sponsor, onClose, onSave, statusOptions }) {
@@ -167,8 +167,28 @@ export function SponsorModal({ sponsor, onClose, onSave, statusOptions }) {
   );
 }
 
+// Lead temperature display helper
+const LeadTemperatureDisplay = ({ temperature, score }) => {
+  if (!temperature) return null;
+
+  const config = {
+    hot: { icon: Flame, color: 'text-red-500', bg: 'bg-red-500/20', label: 'HOT' },
+    warm: { icon: ThermometerSun, color: 'text-orange-500', bg: 'bg-orange-500/20', label: 'WARM' },
+    cold: { icon: Snowflake, color: 'text-blue-400', bg: 'bg-blue-500/20', label: 'COLD' },
+  };
+
+  const { icon: Icon, color, bg, label } = config[temperature] || config.cold;
+
+  return (
+    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${bg} ${color}`}>
+      <Icon className="w-3 h-3" />
+      {label} {score && `(${score})`}
+    </div>
+  );
+};
+
 // Sponsor Detail Modal
-export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEdit, onDelete, onAddInteraction, onComposeEmail, statusOptions }) {
+export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEdit, onDelete, onAddInteraction, onComposeEmail, onResearch, statusOptions }) {
   const [activeTab, setActiveTab] = useState('overview');
 
   return (
@@ -177,7 +197,10 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
         <div className="sticky top-0 bg-slate-800 p-6 border-b border-slate-700">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h3 className="text-2xl font-bold text-white mb-2">{sponsor.name}</h3>
+              <div className="flex items-center gap-3 mb-2">
+                <h3 className="text-2xl font-bold text-white">{sponsor.name}</h3>
+                <LeadTemperatureDisplay temperature={sponsor.lead_temperature} score={sponsor.lead_score} />
+              </div>
               <div className={`inline-block px-3 py-1 rounded-full text-sm text-white ${
                 statusOptions.find(s => s.value === sponsor.status)?.color || 'bg-gray-500'
               }`}>
@@ -185,6 +208,9 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
               </div>
             </div>
             <div className="flex gap-2">
+              <button onClick={onResearch} className="p-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600" title="Research sponsor">
+                <Search className="w-5 h-5" />
+              </button>
               <button onClick={onComposeEmail} className="p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600" title="Compose email">
                 <Mail className="w-5 h-5" />
               </button>

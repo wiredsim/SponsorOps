@@ -17,6 +17,7 @@ import TeamSettings from './TeamSettings';
 import { logAudit } from './auditLog';
 import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm, taskCategories, taskStatuses } from './components';
 import EmailComposer from './EmailComposer';
+import DetectiveWorksheet from './DetectiveWorksheet';
 
 function AppContent() {
   const { user, signOut } = useAuth();
@@ -39,6 +40,7 @@ function AppContent() {
   const [editingTask, setEditingTask] = useState(null);
   const [taskFilter, setTaskFilter] = useState('all'); // 'all', 'mine', 'unassigned'
   const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [showDetectiveWorksheet, setShowDetectiveWorksheet] = useState(false);
 
   // Load data when user or team changes
   useEffect(() => {
@@ -753,6 +755,7 @@ function AppContent() {
           onDelete={() => deleteSponsor(selectedSponsor.id)}
           onAddInteraction={() => setShowAddInteraction(true)}
           onComposeEmail={() => setShowEmailComposer(true)}
+          onResearch={() => setShowDetectiveWorksheet(true)}
           statusOptions={statusOptions}
         />
       )}
@@ -792,6 +795,47 @@ function AppContent() {
               date: new Date().toISOString().split('T')[0]
             });
             setShowEmailComposer(false);
+          }}
+        />
+      )}
+
+      {showDetectiveWorksheet && selectedSponsor && (
+        <DetectiveWorksheet
+          sponsor={selectedSponsor}
+          onClose={() => setShowDetectiveWorksheet(false)}
+          onSave={async (researchData) => {
+            // Save research data to sponsor record
+            const { error } = await supabase
+              .from('sponsors')
+              .update({
+                research_data: researchData,
+                contact_name: researchData.contactName || selectedSponsor.contact_name,
+                email: researchData.contactEmail || selectedSponsor.email,
+                phone: researchData.contactPhone || selectedSponsor.phone,
+                website: researchData.website || selectedSponsor.website,
+                industry: researchData.industry || selectedSponsor.industry,
+                notes: researchData.personalizationSentence
+                  ? `${selectedSponsor.notes || ''}\n\nPersonalization: ${researchData.personalizationSentence}`.trim()
+                  : selectedSponsor.notes,
+                lead_score: researchData.leadScore,
+                lead_temperature: researchData.leadTemperature,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', selectedSponsor.id);
+
+            if (error) {
+              console.error('Error saving research:', error);
+            } else {
+              await loadData();
+              // Update selected sponsor with new data
+              setSelectedSponsor(prev => ({
+                ...prev,
+                research_data: researchData,
+                lead_score: researchData.leadScore,
+                lead_temperature: researchData.leadTemperature
+              }));
+            }
+            setShowDetectiveWorksheet(false);
           }}
         />
       )}
