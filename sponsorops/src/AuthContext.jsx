@@ -72,6 +72,20 @@ export function AuthProvider({ children }) {
     return { error };
   };
 
+  const updatePassword = async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+    return { error };
+  };
+
+  const updateProfile = async (updates) => {
+    const { error } = await supabase.auth.updateUser({
+      data: updates
+    });
+    return { error };
+  };
+
   const value = {
     user,
     loading,
@@ -79,7 +93,9 @@ export function AuthProvider({ children }) {
     signInWithGoogle,
     signInWithPassword,
     signUp,
-    signOut
+    signOut,
+    updatePassword,
+    updateProfile
   };
 
   return (

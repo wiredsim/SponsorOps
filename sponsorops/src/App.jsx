@@ -20,6 +20,7 @@ import EmailComposer from './EmailComposer';
 import DetectiveWorksheet from './DetectiveWorksheet';
 import VariablesEditor from './VariablesEditor';
 import { PlaybookManager } from './PlaybookSystem';
+import AccountSettings from './AccountSettings';
 
 function AppContent() {
   const { user, signOut } = useAuth();
@@ -44,6 +45,7 @@ function AppContent() {
   const [showEmailComposer, setShowEmailComposer] = useState(false);
   const [showDetectiveWorksheet, setShowDetectiveWorksheet] = useState(false);
   const [customPlaybooks, setCustomPlaybooks] = useState([]);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
 
   // Load data when user or team changes
   useEffect(() => {
@@ -728,6 +730,13 @@ function AppContent() {
               <div className="flex items-center gap-3 pl-4 border-l border-slate-700">
                 <span className="text-sm text-blue-300">{user.email}</span>
                 <button
+                  onClick={() => setShowAccountSettings(true)}
+                  className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+                  title="Account Settings"
+                >
+                  <User className="w-4 h-4" />
+                </button>
+                <button
                   onClick={handleSignOut}
                   className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
                   title="Sign out"
@@ -933,6 +942,10 @@ function AppContent() {
 
       {showTeamSettings && (
         <TeamSettings onClose={() => setShowTeamSettings(false)} />
+      )}
+
+      {showAccountSettings && (
+        <AccountSettings onClose={() => setShowAccountSettings(false)} />
       )}
     </div>
   );

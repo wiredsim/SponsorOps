@@ -3,6 +3,16 @@ SponsorOps:
 
 SupaBase password:
 
-bXTDycs22AEk4sfw7t96s3w45hs
+Supabase_db_pwd=bXTDycs22AEk4sfw7t96s3w45hs
+
+Supabase_ProjectURL=https://uppjonutloibqjztmuon.supabase.co
+
+Supabase_ProjectID=uppjonutloibqjztmuon
+
+Supabase_API_Secret=sb_secret_dztKJ5WWNy0LJaKVcJs2Gw_X0pLSMrW
+
+Supabase_Publishable_Key=sb_publishable_r5m8xOExiO0Hgeukmqf5Og_xLfs-4V3
+
+Resend API: re_bB4tpJos_6hG76rkxPNipg4woQvcMZ1LV
 
 Note: If using the Postgres connection string, you will need to percent-encode the password

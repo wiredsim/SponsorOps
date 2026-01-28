@@ -8,7 +8,15 @@
       "Bash(gh repo create:*)",
       "Bash(git push)",
       "Bash(git restore:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npx wrangler --version)",
+      "Bash(npx wrangler login:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm install)",
+      "Bash(npx wrangler:*)",
+      "Bash(curl:*)",
+      "Bash(dig:*)",
+      "Bash(nslookup:*)"
     ]
   }
 }
