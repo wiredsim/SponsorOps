@@ -73,9 +73,18 @@ export default {
         });
 
         if (allRecipients.length === 0) {
+          // Queue for manual review
+          await queueEmail(env, {
+            from,
+            to: '',
+            subject,
+            body: textBody,
+            payload
+          });
+
           return new Response(JSON.stringify({
             success: true,
-            message: 'Email received but could not extract recipients',
+            message: 'Email queued for manual assignment (no recipients found)',
             hint: 'For forwards, make sure the original email headers are included'
           }), {
             status: 200,
@@ -114,11 +123,20 @@ export default {
         } else {
           console.log('No matching sponsor/contact found for:', allRecipients);
 
+          // Queue for manual assignment
+          await queueEmail(env, {
+            from,
+            to: allRecipients.join(', '),
+            subject,
+            body: textBody,
+            payload
+          });
+
           return new Response(JSON.stringify({
             success: true,
-            message: 'Email received but no matching sponsor found',
+            message: 'Email queued for manual assignment',
             recipients: allRecipients,
-            hint: 'Make sure the recipient email matches a contact in SponsorOps'
+            hint: 'Check the email queue in SponsorOps to assign to a sponsor'
           }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
@@ -330,6 +348,46 @@ async function logInteraction(env, interaction) {
 
   } catch (error) {
     console.error('Error logging interaction:', error);
+    return false;
+  }
+}
+
+/**
+ * Queue an unmatched email for manual assignment
+ */
+async function queueEmail(env, email) {
+  try {
+    const response = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/email_queue`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': env.SUPABASE_SERVICE_KEY,
+          'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          email_from: email.from,
+          email_to: email.to,
+          email_subject: email.subject,
+          email_body_preview: (email.body || '').substring(0, 500),
+          status: 'pending',
+          raw_payload: email.payload
+        })
+      }
+    );
+
+    if (!response.ok) {
+      console.error('Failed to queue email:', await response.text());
+      return false;
+    }
+
+    console.log('Email queued for manual assignment');
+    return true;
+
+  } catch (error) {
+    console.error('Error queuing email:', error);
     return false;
   }
 }

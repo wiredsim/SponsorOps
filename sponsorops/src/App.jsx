@@ -6,7 +6,7 @@ import {
   FileText, Target, Briefcase, Award, ChevronRight,
   AlertCircle, Star, MessageSquare, Bell, LogOut,
   Settings, ChevronDown, User, PlayCircle, PauseCircle,
-  Circle, AlertOctagon, BookOpen
+  Circle, AlertOctagon, BookOpen, Inbox
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -21,6 +21,7 @@ import DetectiveWorksheet from './DetectiveWorksheet';
 import VariablesEditor from './VariablesEditor';
 import { PlaybookManager } from './PlaybookSystem';
 import AccountSettings from './AccountSettings';
+import EmailQueue from './EmailQueue';
 
 function AppContent() {
   const { user, signOut } = useAuth();
@@ -664,6 +665,7 @@ function AppContent() {
                   { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
                   { id: 'sponsors', icon: Building2, label: 'Sponsors' },
                   { id: 'tasks', icon: CheckCircle2, label: 'Tasks' },
+                  { id: 'email-queue', icon: Inbox, label: 'Email Queue' },
                   { id: 'playbook', icon: BookOpen, label: 'Playbook' },
                   { id: 'team-specs', icon: Award, label: 'Team Specs' }
                 ].map(item => (
@@ -809,6 +811,19 @@ function AppContent() {
             onUpdateTask={saveTask}
             onDeleteTask={deleteTask}
           />
+        )}
+
+        {/* Email Queue View */}
+        {view === 'email-queue' && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold text-white">Email Queue</h2>
+            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
+              <EmailQueue
+                sponsors={sponsors}
+                onInteractionLogged={loadInteractions}
+              />
+            </div>
+          </div>
         )}
 
         {/* Playbook View */}
