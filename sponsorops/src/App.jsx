@@ -820,7 +820,7 @@ function AppContent() {
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
               <EmailQueue
                 sponsors={sponsors}
-                onInteractionLogged={loadInteractions}
+                onInteractionLogged={loadData}
               />
             </div>
           </div>

@@ -16,7 +16,10 @@
       "Bash(npx wrangler:*)",
       "Bash(curl:*)",
       "Bash(dig:*)",
-      "Bash(nslookup:*)"
+      "Bash(nslookup:*)",
+      "Bash(npx supabase:*)",
+      "Bash(supabase --version:*)",
+      "Bash(where:*)"
     ]
   }
 }
