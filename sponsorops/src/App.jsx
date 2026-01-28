@@ -16,6 +16,7 @@ import TeamSetup from './TeamSetup';
 import TeamSettings from './TeamSettings';
 import { logAudit } from './auditLog';
 import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm, taskCategories, taskStatuses } from './components';
+import EmailComposer from './EmailComposer';
 
 function AppContent() {
   const { user, signOut } = useAuth();
@@ -37,6 +38,7 @@ function AppContent() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [editingTask, setEditingTask] = useState(null);
   const [taskFilter, setTaskFilter] = useState('all'); // 'all', 'mine', 'unassigned'
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
 
   // Load data when user or team changes
   useEffect(() => {
@@ -750,6 +752,7 @@ function AppContent() {
           onEdit={() => setShowAddSponsor(true)}
           onDelete={() => deleteSponsor(selectedSponsor.id)}
           onAddInteraction={() => setShowAddInteraction(true)}
+          onComposeEmail={() => setShowEmailComposer(true)}
           statusOptions={statusOptions}
         />
       )}
@@ -773,6 +776,23 @@ function AppContent() {
           sponsor={selectedSponsor}
           onClose={() => setShowAddInteraction(false)}
           onSave={saveInteraction}
+        />
+      )}
+
+      {showEmailComposer && selectedSponsor && (
+        <EmailComposer
+          sponsor={selectedSponsor}
+          teamInfo={teamInfo}
+          currentTeam={currentTeam}
+          onClose={() => setShowEmailComposer(false)}
+          onLogInteraction={(interactionData) => {
+            saveInteraction({
+              ...interactionData,
+              sponsor_id: selectedSponsor.id,
+              date: new Date().toISOString().split('T')[0]
+            });
+            setShowEmailComposer(false);
+          }}
         />
       )}
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image } from 'lucide-react';
+import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image, Mail } from 'lucide-react';
 
 // Sponsor Modal Component
 export function SponsorModal({ sponsor, onClose, onSave, statusOptions }) {
@@ -168,7 +168,7 @@ export function SponsorModal({ sponsor, onClose, onSave, statusOptions }) {
 }
 
 // Sponsor Detail Modal
-export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEdit, onDelete, onAddInteraction, statusOptions }) {
+export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEdit, onDelete, onAddInteraction, onComposeEmail, statusOptions }) {
   const [activeTab, setActiveTab] = useState('overview');
 
   return (
@@ -185,7 +185,10 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
               </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={onEdit} className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+              <button onClick={onComposeEmail} className="p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600" title="Compose email">
+                <Mail className="w-5 h-5" />
+              </button>
+              <button onClick={onEdit} className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600" title="Edit sponsor">
                 <Edit2 className="w-5 h-5" />
               </button>
               <button onClick={onDelete} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600" title="Archive sponsor">
@@ -692,15 +695,47 @@ export function TeamInfoForm({ teamInfo, onSave }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Basic Info for Email Templates */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-blue-300 mb-2">Season Year</label>
+          <input
+            type="text"
+            value={formData.season_year || ''}
+            onChange={(e) => setFormData({...formData, season_year: e.target.value})}
+            disabled={!editing}
+            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+            placeholder="e.g., 2025"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-blue-300 mb-2">Team Size (# of students)</label>
+          <input
+            type="text"
+            value={formData.team_size || ''}
+            onChange={(e) => setFormData({...formData, team_size: e.target.value})}
+            disabled={!editing}
+            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+            placeholder="e.g., 35"
+          />
+        </div>
+      </div>
+
       <div>
-        <label className="block text-sm font-medium text-blue-300 mb-2">Season Year</label>
+        <label className="block text-sm font-medium text-blue-300 mb-2">Team Location (City/Town)</label>
         <input
           type="text"
-          value={formData.season_year || formData.seasonYear}
-          onChange={(e) => setFormData({...formData, season_year: e.target.value, seasonYear: e.target.value})}
+          value={formData.team_location || ''}
+          onChange={(e) => setFormData({...formData, team_location: e.target.value})}
           disabled={!editing}
           className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+          placeholder="e.g., Holland, Michigan"
         />
+      </div>
+
+      <div className="border-t border-slate-700 pt-6 mt-6">
+        <h4 className="text-lg font-semibold text-white mb-4">For Email Templates</h4>
+        <p className="text-sm text-slate-400 mb-4">These will auto-fill into your sponsor outreach emails.</p>
       </div>
 
       <div>
@@ -747,15 +782,46 @@ export function TeamInfoForm({ teamInfo, onSave }) {
 
       <div>
         <label className="block text-sm font-medium text-blue-300 mb-2">
-          Last Season's Achievements
+          Last Season's Achievements (summary)
         </label>
         <textarea
-          value={formData.last_season_achievements || formData.lastSeasonAchievements}
-          onChange={(e) => setFormData({...formData, last_season_achievements: e.target.value, lastSeasonAchievements: e.target.value})}
+          value={formData.last_season_achievements || ''}
+          onChange={(e) => setFormData({...formData, last_season_achievements: e.target.value})}
           disabled={!editing}
-          rows={3}
+          rows={2}
           className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
           placeholder="e.g., Competed at X tournaments, won Y award..."
+        />
+      </div>
+
+      {/* Specific achievements for email "With your help, we:" section */}
+      <div className="bg-slate-900/50 p-4 rounded-lg space-y-3">
+        <label className="block text-sm font-medium text-orange-300 mb-2">
+          "With your help, we..." (for returning sponsor emails)
+        </label>
+        <input
+          type="text"
+          value={formData.achievement_1 || ''}
+          onChange={(e) => setFormData({...formData, achievement_1: e.target.value})}
+          disabled={!editing}
+          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+          placeholder="Competition achievement, e.g., Competed at State Championship"
+        />
+        <input
+          type="text"
+          value={formData.achievement_2 || ''}
+          onChange={(e) => setFormData({...formData, achievement_2: e.target.value})}
+          disabled={!editing}
+          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+          placeholder="Student impact, e.g., Grew to 35 students, 12 pursuing engineering"
+        />
+        <input
+          type="text"
+          value={formData.achievement_3 || ''}
+          onChange={(e) => setFormData({...formData, achievement_3: e.target.value})}
+          disabled={!editing}
+          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500 disabled:opacity-50"
+          placeholder="Technical achievement, e.g., Implemented swerve drive and auto"
         />
       </div>
 
