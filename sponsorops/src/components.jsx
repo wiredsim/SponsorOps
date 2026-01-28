@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image, Mail, Search, Flame, ThermometerSun, Snowflake, CheckCircle2 } from 'lucide-react';
+import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image, Mail, Search, Flame, ThermometerSun, Snowflake, CheckCircle2, Users, DollarSign } from 'lucide-react';
+import ContactsEditor from './ContactsEditor';
+import DonationsEditor from './DonationsEditor';
 
 // Helper: Get local date string (YYYY-MM-DD) without timezone issues
 const getLocalDateString = (date = new Date()) => {
@@ -257,7 +259,7 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
           </div>
 
           <div className="flex gap-2">
-            {['overview', 'interactions', 'tasks'].map(tab => (
+            {['overview', 'contacts', 'donations', 'interactions', 'tasks'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -320,6 +322,32 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
                   <p className="text-white bg-slate-900/50 p-4 rounded-lg">{sponsor.notes}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'contacts' && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-blue-300 mb-4">
+                <Users className="w-5 h-5" />
+                <h4 className="font-medium">Contacts at {sponsor.name}</h4>
+              </div>
+              <ContactsEditor
+                sponsorId={sponsor.id}
+                teamId={sponsor.team_id}
+              />
+            </div>
+          )}
+
+          {activeTab === 'donations' && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-blue-300 mb-4">
+                <DollarSign className="w-5 h-5" />
+                <h4 className="font-medium">Donations from {sponsor.name}</h4>
+              </div>
+              <DonationsEditor
+                sponsorId={sponsor.id}
+                teamId={sponsor.team_id}
+              />
             </div>
           )}
 

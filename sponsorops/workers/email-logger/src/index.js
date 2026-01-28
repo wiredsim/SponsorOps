@@ -3,11 +3,11 @@
  *
  * Receives inbound email webhooks from Resend and logs them as interactions.
  *
- * Usage:
- * - BCC log@sponsorops.net when emailing a sponsor
- * - Forward a sent email to log@sponsorops.net
- * - Resend sends webhook to this worker
- * - Worker matches recipient to a sponsor and logs the interaction
+ * Supports:
+ * - BCC: BCC log@sponsorops.net when emailing a sponsor
+ * - Forward: Forward sent emails to log@sponsorops.net
+ *
+ * The worker matches recipients to sponsors/contacts and auto-logs interactions.
  */
 
 export default {
@@ -40,83 +40,90 @@ export default {
         const payload = await request.json();
         console.log('Received webhook:', JSON.stringify(payload, null, 2));
 
-        // Resend inbound email webhook structure
-        // https://resend.com/docs/dashboard/webhooks/event-types#email-received
-        const { type, data } = payload;
+        // Resend inbound email structure varies - let's handle multiple formats
+        const data = payload.data || payload;
+        const type = payload.type || 'email.received';
 
-        if (type === 'email.received' || type === 'email.delivered' || data?.from) {
-          // Handle inbound email
-          const email = data;
+        // Extract email details - handle various formats
+        const from = extractEmail(data.from || data.sender || data.envelope?.from);
+        const to = extractEmailList(data.to || data.envelope?.to || []);
+        const cc = extractEmailList(data.cc || []);
+        const subject = data.subject || '(no subject)';
+        const textBody = data.text || data.body || data.html || '';
 
-          // Extract email details
-          const from = email.from || email.sender;
-          const to = email.to || [];
-          const cc = email.cc || [];
-          const subject = email.subject || '(no subject)';
-          const text = email.text || email.body || '';
+        // Get all direct recipients (exclude our log address)
+        let allRecipients = [...to, ...cc]
+          .filter(addr => addr && !addr.toLowerCase().includes('log@sponsorops.net'));
 
-          // Get all recipients to find the sponsor (exclude our log address)
-          const allRecipients = [...to, ...cc]
-            .map(r => typeof r === 'string' ? r : r.email || r.address)
-            .filter(addr => addr && !addr.toLowerCase().includes('log@sponsorops.net'));
+        console.log('Direct recipients:', allRecipients);
 
-          // Also check the "from" in case this was forwarded
-          const fromEmail = typeof from === 'string' ? from : from?.email || from?.address;
-
-          console.log('Processing email:', {
-            from: fromEmail,
-            recipients: allRecipients,
-            subject
-          });
-
-          // Try to find a matching sponsor
-          const sponsor = await findSponsorByEmail(env, allRecipients);
-
-          if (sponsor) {
-            // Log the interaction
-            await logInteraction(env, {
-              sponsor_id: sponsor.id,
-              team_id: sponsor.team_id,
-              type: 'email',
-              notes: `Subject: ${subject}\n\n(Logged via log@sponsorops.net)`,
-              date: new Date().toISOString().split('T')[0],
-              email_from: fromEmail,
-              email_to: allRecipients.join(', '),
-              email_subject: subject,
-            });
-
-            console.log(`Logged interaction for sponsor: ${sponsor.name}`);
-
-            return new Response(JSON.stringify({
-              success: true,
-              message: `Logged interaction for ${sponsor.name}`
-            }), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' }
-            });
-          } else {
-            console.log('No matching sponsor found for recipients:', allRecipients);
-
-            return new Response(JSON.stringify({
-              success: true,
-              message: 'Email received but no matching sponsor found',
-              recipients: allRecipients
-            }), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' }
-            });
-          }
+        // If no direct recipients, this might be a forwarded email
+        // Try to extract original recipients from the email body
+        if (allRecipients.length === 0 && textBody) {
+          const forwardedRecipients = extractEmailsFromForward(textBody);
+          allRecipients = forwardedRecipients;
+          console.log('Extracted from forwarded email:', allRecipients);
         }
 
-        // Unknown webhook type - acknowledge it
-        return new Response(JSON.stringify({
-          success: true,
-          message: 'Webhook received',
-          type: type
-        }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
+        console.log('Processing email:', {
+          from,
+          recipients: allRecipients,
+          subject,
+          bodyLength: textBody.length
         });
+
+        if (allRecipients.length === 0) {
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Email received but could not extract recipients',
+            hint: 'For forwards, make sure the original email headers are included'
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Try to find a matching sponsor via contacts table first, then sponsors table
+        const match = await findSponsorByEmail(env, allRecipients);
+
+        if (match) {
+          // Log the interaction
+          await logInteraction(env, {
+            sponsor_id: match.sponsor_id,
+            team_id: match.team_id,
+            type: 'email',
+            notes: `Subject: ${subject}\n\n(Logged via log@sponsorops.net)`,
+            date: new Date().toISOString().split('T')[0],
+            email_from: from,
+            email_to: allRecipients.join(', '),
+            email_subject: subject,
+            contact_name: match.contact_name
+          });
+
+          console.log(`Logged interaction for sponsor: ${match.sponsor_name}`);
+
+          return new Response(JSON.stringify({
+            success: true,
+            message: `Logged interaction for ${match.sponsor_name}`,
+            contact: match.contact_name,
+            matchedEmail: match.matched_email
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } else {
+          console.log('No matching sponsor/contact found for:', allRecipients);
+
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Email received but no matching sponsor found',
+            recipients: allRecipients,
+            hint: 'Make sure the recipient email matches a contact in SponsorOps'
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
 
       } catch (error) {
         console.error('Error processing webhook:', error);
@@ -135,36 +142,145 @@ export default {
 };
 
 /**
- * Find a sponsor by checking if any of the email recipients match a sponsor's email
+ * Extract a single email address from various formats
+ */
+function extractEmail(input) {
+  if (!input) return null;
+  if (typeof input === 'string') {
+    // Handle "Name <email@example.com>" format
+    const match = input.match(/<([^>]+)>/) || input.match(/([^\s<>]+@[^\s<>]+)/);
+    return match ? match[1].toLowerCase() : input.toLowerCase();
+  }
+  if (typeof input === 'object') {
+    return (input.email || input.address || '').toLowerCase();
+  }
+  return null;
+}
+
+/**
+ * Extract list of email addresses
+ */
+function extractEmailList(input) {
+  if (!input) return [];
+  if (typeof input === 'string') {
+    // Could be comma-separated
+    return input.split(',').map(e => extractEmail(e.trim())).filter(Boolean);
+  }
+  if (Array.isArray(input)) {
+    return input.map(e => extractEmail(e)).filter(Boolean);
+  }
+  return [];
+}
+
+/**
+ * Extract email addresses from forwarded email body
+ * Looks for patterns like "To: email@example.com" in the body
+ */
+function extractEmailsFromForward(body) {
+  const emails = new Set();
+
+  // Common patterns in forwarded emails
+  const patterns = [
+    /To:\s*<?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>?/gi,
+    /Cc:\s*<?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>?/gi,
+    /mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi,
+    // Generic email pattern as fallback (but exclude common false positives)
+    /\b([a-zA-Z0-9._%+-]+@(?!sponsorops\.net)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b/gi
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(body)) !== null) {
+      const email = match[1].toLowerCase();
+      // Exclude our own addresses and common noreply addresses
+      if (!email.includes('sponsorops.net') &&
+          !email.includes('noreply') &&
+          !email.includes('no-reply') &&
+          !email.includes('mailer-daemon')) {
+        emails.add(email);
+      }
+    }
+  }
+
+  return Array.from(emails);
+}
+
+/**
+ * Find a sponsor by checking contacts table first, then sponsors table
  */
 async function findSponsorByEmail(env, recipientEmails) {
   if (!recipientEmails || recipientEmails.length === 0) return null;
 
   try {
-    // Query Supabase for sponsors matching any of the recipient emails
-    // Using OR filter for multiple emails
-    const emailFilters = recipientEmails
-      .map(email => `email.ilike.${encodeURIComponent(email)}`)
-      .join(',');
+    // First, search the contacts table
+    for (const email of recipientEmails) {
+      const contactResponse = await fetch(
+        `${env.SUPABASE_URL}/rest/v1/contacts?email=ilike.${encodeURIComponent(email)}&select=id,name,email,sponsor_id,team_id`,
+        {
+          headers: {
+            'apikey': env.SUPABASE_SERVICE_KEY,
+            'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
-    const response = await fetch(
-      `${env.SUPABASE_URL}/rest/v1/sponsors?or=(${emailFilters})&deleted_at=is.null&limit=1`,
-      {
-        headers: {
-          'apikey': env.SUPABASE_SERVICE_KEY,
-          'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
-          'Content-Type': 'application/json'
+      if (contactResponse.ok) {
+        const contacts = await contactResponse.json();
+        if (contacts.length > 0) {
+          const contact = contacts[0];
+          // Get sponsor name
+          const sponsorResponse = await fetch(
+            `${env.SUPABASE_URL}/rest/v1/sponsors?id=eq.${contact.sponsor_id}&select=name`,
+            {
+              headers: {
+                'apikey': env.SUPABASE_SERVICE_KEY,
+                'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          const sponsors = await sponsorResponse.json();
+          return {
+            sponsor_id: contact.sponsor_id,
+            team_id: contact.team_id,
+            sponsor_name: sponsors[0]?.name || 'Unknown',
+            contact_name: contact.name,
+            matched_email: email
+          };
         }
       }
-    );
-
-    if (!response.ok) {
-      console.error('Supabase query failed:', await response.text());
-      return null;
     }
 
-    const sponsors = await response.json();
-    return sponsors.length > 0 ? sponsors[0] : null;
+    // Fallback: search sponsors table directly
+    for (const email of recipientEmails) {
+      const response = await fetch(
+        `${env.SUPABASE_URL}/rest/v1/sponsors?email=ilike.${encodeURIComponent(email)}&deleted_at=is.null&select=id,name,team_id,contact_name`,
+        {
+          headers: {
+            'apikey': env.SUPABASE_SERVICE_KEY,
+            'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const sponsors = await response.json();
+        if (sponsors.length > 0) {
+          const sponsor = sponsors[0];
+          return {
+            sponsor_id: sponsor.id,
+            team_id: sponsor.team_id,
+            sponsor_name: sponsor.name,
+            contact_name: sponsor.contact_name,
+            matched_email: email
+          };
+        }
+      }
+    }
+
+    return null;
 
   } catch (error) {
     console.error('Error querying Supabase:', error);
@@ -198,7 +314,8 @@ async function logInteraction(env, interaction) {
             logged_via: 'email',
             email_from: interaction.email_from,
             email_to: interaction.email_to,
-            email_subject: interaction.email_subject
+            email_subject: interaction.email_subject,
+            contact_name: interaction.contact_name
           }
         })
       }
