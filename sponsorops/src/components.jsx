@@ -720,141 +720,152 @@ export function TeamInfoForm({ teamInfo, onSave }) {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const inputClass = "w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500";
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Basic Info for Email Templates */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-blue-300 mb-2">Season Year</label>
-          <input
-            type="text"
-            value={formData.season_year || ''}
-            onChange={(e) => setFormData({...formData, season_year: e.target.value})}
-                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-            placeholder="e.g., 2025"
-          />
+    <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Section 1: Basic Team Info */}
+      <div className="bg-slate-900/30 p-5 rounded-xl border border-slate-700/50">
+        <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <span className="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
+          Basic Team Info
+        </h4>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-blue-300 mb-2">Season Year</label>
+            <input
+              type="text"
+              value={formData.season_year || ''}
+              onChange={(e) => setFormData({...formData, season_year: e.target.value})}
+              className={inputClass}
+              placeholder="2025"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-blue-300 mb-2">Team Size</label>
+            <input
+              type="text"
+              value={formData.team_size || ''}
+              onChange={(e) => setFormData({...formData, team_size: e.target.value})}
+              className={inputClass}
+              placeholder="35 students"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-blue-300 mb-2">Location</label>
+            <input
+              type="text"
+              value={formData.team_location || ''}
+              onChange={(e) => setFormData({...formData, team_location: e.target.value})}
+              className={inputClass}
+              placeholder="Holland, MI"
+            />
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-blue-300 mb-2">Team Size (# of students)</label>
-          <input
-            type="text"
-            value={formData.team_size || ''}
-            onChange={(e) => setFormData({...formData, team_size: e.target.value})}
-                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-            placeholder="e.g., 35"
-          />
+      </div>
+
+      {/* Section 2: This Season */}
+      <div className="bg-slate-900/30 p-5 rounded-xl border border-slate-700/50">
+        <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <span className="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
+          This Season
+        </h4>
+        <p className="text-sm text-slate-400 mb-4">What's new and exciting this year?</p>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-blue-300 mb-2">New Technology / Innovations</label>
+            <input
+              type="text"
+              value={formData.new_tech || ''}
+              onChange={(e) => setFormData({...formData, new_tech: e.target.value})}
+              className={inputClass}
+              placeholder="e.g., Swerve drive, computer vision, 3D printing"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-blue-300 mb-2">Competition Goals</label>
+            <input
+              type="text"
+              value={formData.goals || ''}
+              onChange={(e) => setFormData({...formData, goals: e.target.value})}
+              className={inputClass}
+              placeholder="e.g., Qualify for State Championship"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-blue-300 mb-2">Team Growth / Changes</label>
+            <input
+              type="text"
+              value={formData.team_changes || ''}
+              onChange={(e) => setFormData({...formData, team_changes: e.target.value})}
+              className={inputClass}
+              placeholder="e.g., New mentorship program, expanded to 2 competition robots"
+            />
+          </div>
         </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-blue-300 mb-2">Team Location (City/Town)</label>
-        <input
-          type="text"
-          value={formData.team_location || ''}
-          onChange={(e) => setFormData({...formData, team_location: e.target.value})}
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-          placeholder="e.g., Holland, Michigan"
-        />
+      {/* Section 3: Last Season Achievements */}
+      <div className="bg-slate-900/30 p-5 rounded-xl border border-slate-700/50">
+        <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <span className="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
+          Last Season's Achievements
+        </h4>
+        <p className="text-sm text-slate-400 mb-4">For returning sponsor emails: "With your help, we..."</p>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-green-300 mb-2">Competition Achievement</label>
+            <input
+              type="text"
+              value={formData.achievement_1 || ''}
+              onChange={(e) => setFormData({...formData, achievement_1: e.target.value})}
+              className={inputClass}
+              placeholder="e.g., Competed at State Championship for the first time"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-green-300 mb-2">Student Impact</label>
+            <input
+              type="text"
+              value={formData.achievement_2 || ''}
+              onChange={(e) => setFormData({...formData, achievement_2: e.target.value})}
+              className={inputClass}
+              placeholder="e.g., Grew to 35 students, 12 now pursuing engineering degrees"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-green-300 mb-2">Technical Achievement</label>
+            <input
+              type="text"
+              value={formData.achievement_3 || ''}
+              onChange={(e) => setFormData({...formData, achievement_3: e.target.value})}
+              className={inputClass}
+              placeholder="e.g., Successfully implemented autonomous navigation"
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="border-t border-slate-700 pt-6 mt-6">
-        <h4 className="text-lg font-semibold text-white mb-4">For Email Templates</h4>
-        <p className="text-sm text-slate-400 mb-4">These will auto-fill into your sponsor outreach emails.</p>
-      </div>
+      {/* Section 4: Sponsor Pitch Summary */}
+      <div className="bg-slate-900/30 p-5 rounded-xl border border-slate-700/50">
+        <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <span className="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">4</span>
+          Sponsor Pitch Summary
+        </h4>
+        <p className="text-sm text-slate-400 mb-4">A quick way to describe last season to sponsors</p>
 
-      <div>
-        <label className="block text-sm font-medium text-blue-300 mb-2">
-          New Technology & Innovations This Year
-        </label>
         <textarea
-          value={formData.new_tech || formData.newTech}
-          onChange={(e) => setFormData({...formData, new_tech: e.target.value, newTech: e.target.value})}
-                    rows={3}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-          placeholder="e.g., Swerve drive, computer vision, advanced manufacturing..."
+          value={formData.last_season_story || ''}
+          onChange={(e) => setFormData({...formData, last_season_story: e.target.value})}
+          rows={2}
+          className={inputClass}
+          placeholder="e.g., Competed strongly at 3 tournaments, came within 2 spots of State Championship qualification"
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-blue-300 mb-2">
-          Team Changes & Growth
-        </label>
-        <textarea
-          value={formData.team_changes || formData.teamChanges}
-          onChange={(e) => setFormData({...formData, team_changes: e.target.value, teamChanges: e.target.value})}
-                    rows={3}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-          placeholder="e.g., New leadership structure, mentorship programs..."
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-blue-300 mb-2">
-          Competition Goals This Season
-        </label>
-        <textarea
-          value={formData.goals}
-          onChange={(e) => setFormData({...formData, goals: e.target.value})}
-                    rows={3}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-          placeholder="e.g., Qualify for State Championship, win specific awards..."
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-blue-300 mb-2">
-          Last Season's Achievements (summary)
-        </label>
-        <textarea
-          value={formData.last_season_achievements || ''}
-          onChange={(e) => setFormData({...formData, last_season_achievements: e.target.value})}
-                    rows={2}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-          placeholder="e.g., Competed at X tournaments, won Y award..."
-        />
-      </div>
-
-      {/* Specific achievements for email "With your help, we:" section */}
-      <div className="bg-slate-900/50 p-4 rounded-lg space-y-3">
-        <label className="block text-sm font-medium text-orange-300 mb-2">
-          "With your help, we..." (for returning sponsor emails)
-        </label>
-        <input
-          type="text"
-          value={formData.achievement_1 || ''}
-          onChange={(e) => setFormData({...formData, achievement_1: e.target.value})}
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-          placeholder="Competition achievement, e.g., Competed at State Championship"
-        />
-        <input
-          type="text"
-          value={formData.achievement_2 || ''}
-          onChange={(e) => setFormData({...formData, achievement_2: e.target.value})}
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-          placeholder="Student impact, e.g., Grew to 35 students, 12 pursuing engineering"
-        />
-        <input
-          type="text"
-          value={formData.achievement_3 || ''}
-          onChange={(e) => setFormData({...formData, achievement_3: e.target.value})}
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-          placeholder="Technical achievement, e.g., Implemented swerve drive and auto"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-blue-300 mb-2">
-          How to Describe Last Season (for sponsors)
-        </label>
-        <textarea
-          value={formData.last_season_story || formData.lastSeasonStory}
-          onChange={(e) => setFormData({...formData, last_season_story: e.target.value, lastSeasonStory: e.target.value})}
-                    rows={3}
-          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-          placeholder="e.g., 'Competed strongly at 3 tournaments, came within 2 spots of State Championship qualification'"
-        />
-      </div>
-
+      {/* Save Button */}
       <div className="flex gap-3">
         <button
           type="submit"
