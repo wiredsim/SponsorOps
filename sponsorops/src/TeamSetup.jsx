@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Users, Mail, CheckCircle2, AlertCircle, Plus, Building2 } from 'lucide-react';
+import { Users, Mail, CheckCircle2, AlertCircle, Plus, Building2, LogOut } from 'lucide-react';
 import { useTeam } from './TeamContext';
 import { useAuth } from './AuthContext';
 
 export default function TeamSetup() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { pendingInvites, hasPendingInvites, acceptInvite, createTeam, loading, error: teamError } = useTeam();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createFormData, setCreateFormData] = useState({ name: '', teamNumber: '' });
@@ -208,10 +208,17 @@ export default function TeamSetup() {
         )}
 
         {/* User info */}
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center space-y-3">
           <p className="text-sm text-slate-500">
             Logged in as <span className="text-blue-300">{user?.email}</span>
           </p>
+          <button
+            onClick={signOut}
+            className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign out
+          </button>
         </div>
       </div>
     </div>
