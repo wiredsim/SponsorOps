@@ -833,6 +833,42 @@ function AppContent() {
             onSave={savePlaybook}
             onDelete={deletePlaybook}
             onNavigateToSpecs={() => setView('team-specs')}
+            hiddenDefaults={teamInfo?.hidden_playbooks || []}
+            onHideDefault={async (playbookId) => {
+              if (!confirm('Hide this default template? You can restore it later.')) return;
+              const currentHidden = teamInfo?.hidden_playbooks || [];
+              const updatedInfo = {
+                ...teamInfo,
+                hidden_playbooks: [...currentHidden, playbookId]
+              };
+              setTeamInfo(updatedInfo);
+              // Save to database
+              try {
+                await supabase
+                  .from('team_info')
+                  .update({ hidden_playbooks: updatedInfo.hidden_playbooks })
+                  .eq('team_id', currentTeam.id);
+              } catch (error) {
+                console.error('Error hiding playbook:', error);
+              }
+            }}
+            onRestoreDefault={async (playbookId) => {
+              const currentHidden = teamInfo?.hidden_playbooks || [];
+              const updatedInfo = {
+                ...teamInfo,
+                hidden_playbooks: currentHidden.filter(id => id !== playbookId)
+              };
+              setTeamInfo(updatedInfo);
+              // Save to database
+              try {
+                await supabase
+                  .from('team_info')
+                  .update({ hidden_playbooks: updatedInfo.hidden_playbooks })
+                  .eq('team_id', currentTeam.id);
+              } catch (error) {
+                console.error('Error restoring playbook:', error);
+              }
+            }}
           />
         )}
 

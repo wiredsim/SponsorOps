@@ -578,7 +578,7 @@ const colorClasses = {
 };
 
 // Playbook Card Component
-function PlaybookCard({ playbook, onEdit, onDelete, onUse }) {
+function PlaybookCard({ playbook, onEdit, onDelete, onUse, onCustomize, onHide }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const typeConfig = playbookTypes[playbook.type];
@@ -683,6 +683,25 @@ function PlaybookCard({ playbook, onEdit, onDelete, onUse }) {
               >
                 <Play className="w-4 h-4" />
                 Use This
+              </button>
+            )}
+            {playbook.isDefault && onCustomize && (
+              <button
+                onClick={() => onCustomize(playbook)}
+                className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg text-sm"
+                title="Create editable copy"
+              >
+                <Copy className="w-4 h-4" />
+                Customize
+              </button>
+            )}
+            {playbook.isDefault && onHide && (
+              <button
+                onClick={() => onHide(playbook.id)}
+                className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded-lg text-sm"
+                title="Hide this template"
+              >
+                <X className="w-4 h-4" />
               </button>
             )}
             {!playbook.isDefault && onEdit && (
@@ -909,16 +928,18 @@ function PlaybookEditor({ playbook, onSave, onClose }) {
 }
 
 // Main Playbook Manager Component
-export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateToSpecs }) {
+export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateToSpecs, hiddenDefaults = [], onHideDefault, onRestoreDefault }) {
   const [filter, setFilter] = useState('all');
   const [editingPlaybook, setEditingPlaybook] = useState(null);
   const [showEditor, setShowEditor] = useState(false);
   const [showVariablesGuide, setShowVariablesGuide] = useState(false);
 
   // Combine default playbooks with custom ones, sorted by type
+  // Filter out hidden defaults
   const typeOrder = ['email', 'phone', 'meeting', 'tip'];
+  const visibleDefaults = defaultPlaybooks.filter(p => !hiddenDefaults.includes(p.id));
   const allPlaybooks = [
-    ...defaultPlaybooks,
+    ...visibleDefaults,
     ...playbooks.filter(p => !p.isDefault)
   ].sort((a, b) => {
     // First sort by type
@@ -930,6 +951,18 @@ export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateTo
     if (!a.isDefault && b.isDefault) return 1;
     return 0;
   });
+
+  // Handle customizing a default (creates an editable copy)
+  const handleCustomize = (playbook) => {
+    const customized = {
+      ...playbook,
+      id: undefined, // Will get new ID on save
+      title: `${playbook.title} (Custom)`,
+      isDefault: false,
+    };
+    setEditingPlaybook(customized);
+    setShowEditor(true);
+  };
 
   const filteredPlaybooks = filter === 'all'
     ? allPlaybooks
@@ -1037,9 +1070,36 @@ export function PlaybookManager({ playbooks = [], onSave, onDelete, onNavigateTo
             playbook={playbook}
             onEdit={(p) => { setEditingPlaybook(p); setShowEditor(true); }}
             onDelete={onDelete}
+            onCustomize={handleCustomize}
+            onHide={onHideDefault}
           />
         ))}
       </div>
+
+      {/* Hidden Templates Section */}
+      {hiddenDefaults.length > 0 && onRestoreDefault && (
+        <div className="mt-8 pt-6 border-t border-slate-700">
+          <h3 className="text-sm font-medium text-slate-400 mb-3">
+            Hidden Templates ({hiddenDefaults.length})
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {hiddenDefaults.map(id => {
+              const playbook = defaultPlaybooks.find(p => p.id === id);
+              if (!playbook) return null;
+              return (
+                <button
+                  key={id}
+                  onClick={() => onRestoreDefault(id)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm transition-colors"
+                >
+                  <span>{playbook.title}</span>
+                  <Plus className="w-3 h-3" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Editor Modal */}
       {showEditor && (
