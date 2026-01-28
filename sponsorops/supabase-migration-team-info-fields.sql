@@ -7,7 +7,8 @@ ADD COLUMN IF NOT EXISTS team_size TEXT,
 ADD COLUMN IF NOT EXISTS team_location TEXT,
 ADD COLUMN IF NOT EXISTS achievement_1 TEXT,
 ADD COLUMN IF NOT EXISTS achievement_2 TEXT,
-ADD COLUMN IF NOT EXISTS achievement_3 TEXT;
+ADD COLUMN IF NOT EXISTS achievement_3 TEXT,
+ADD COLUMN IF NOT EXISTS variables JSONB DEFAULT '{}';
 
 -- Add comments for documentation
 COMMENT ON COLUMN team_info.team_size IS 'Number of students on team (e.g., "35")';
@@ -15,3 +16,4 @@ COMMENT ON COLUMN team_info.team_location IS 'City/town location (e.g., "Holland
 COMMENT ON COLUMN team_info.achievement_1 IS 'Achievement for email template - competition';
 COMMENT ON COLUMN team_info.achievement_2 IS 'Achievement for email template - student impact';
 COMMENT ON COLUMN team_info.achievement_3 IS 'Achievement for email template - technical';
+COMMENT ON COLUMN team_info.variables IS 'Flexible JSON storage for email template variables';

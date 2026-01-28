@@ -18,6 +18,7 @@ import { logAudit } from './auditLog';
 import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm, taskCategories, taskStatuses, isDateOverdue, formatLocalDate } from './components';
 import EmailComposer from './EmailComposer';
 import DetectiveWorksheet from './DetectiveWorksheet';
+import VariablesEditor from './VariablesEditor';
 
 function AppContent() {
   const { user, signOut } = useAuth();
@@ -726,7 +727,7 @@ function AppContent() {
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-white">Team Information</h2>
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50 max-w-3xl">
-              <TeamInfoForm teamInfo={teamInfo} onSave={saveTeamInfo} />
+              <TeamInfoForm teamInfo={teamInfo} onSave={saveTeamInfo} VariablesEditor={VariablesEditor} />
             </div>
           </div>
         )}
