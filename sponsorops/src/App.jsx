@@ -15,7 +15,7 @@ import LoginPage from './LoginPage';
 import TeamSetup from './TeamSetup';
 import TeamSettings from './TeamSettings';
 import { logAudit } from './auditLog';
-import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm, taskCategories, taskStatuses } from './components';
+import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm, taskCategories, taskStatuses, isDateOverdue, formatLocalDate } from './components';
 import EmailComposer from './EmailComposer';
 import DetectiveWorksheet from './DetectiveWorksheet';
 
@@ -902,7 +902,7 @@ export function AppWithAuth() {
 // Dashboard View Component
 function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onAddSponsor, onSelectSponsor, onUpdateTask, onViewTasks, statusOptions }) {
   const myTasks = tasks.filter(t => t.assigned_to === currentUserId && t.status !== 'completed');
-  const overdueTasks = tasks.filter(t => t.status !== 'completed' && new Date(t.due_date) < new Date());
+  const overdueTasks = tasks.filter(t => t.status !== 'completed' && isDateOverdue(t.due_date));
 
   const getMemberName = (userId) => {
     const member = teamMembers.find(m => m.id === userId);
@@ -962,7 +962,7 @@ function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onA
           <div className="space-y-3">
             {myTasks.slice(0, 5).map(task => {
               const sponsor = sponsors.find(s => s.id === task.sponsor_id);
-              const isOverdue = new Date(task.due_date) < new Date();
+              const isOverdue = isDateOverdue(task.due_date);
               return (
                 <div key={task.id} className={`flex items-start gap-3 p-3 bg-slate-900/50 rounded-lg ${isOverdue ? 'border border-red-500/50' : ''}`}>
                   <div className={`mt-1 w-3 h-3 rounded-full ${
@@ -975,7 +975,7 @@ function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onA
                       <div className="text-xs text-blue-300 mt-1">{sponsor.name}</div>
                     )}
                     <div className={`text-xs mt-1 ${isOverdue ? 'text-red-400' : 'text-slate-400'}`}>
-                      Due: {new Date(task.due_date).toLocaleDateString()}
+                      Due: {formatLocalDate(task.due_date)}
                       {isOverdue && ' (Overdue)'}
                     </div>
                   </div>
@@ -1030,7 +1030,7 @@ function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onA
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {tasks.filter(t => t.status !== 'completed').slice(0, 6).map(task => {
             const sponsor = sponsors.find(s => s.id === task.sponsor_id);
-            const isOverdue = new Date(task.due_date) < new Date();
+            const isOverdue = isDateOverdue(task.due_date);
             return (
               <div key={task.id} className={`p-3 bg-slate-900/50 rounded-lg ${isOverdue ? 'border border-red-500/50' : ''}`}>
                 <div className="flex items-start justify-between mb-2">
@@ -1042,7 +1042,7 @@ function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onA
                     {task.status === 'in_progress' ? 'In Progress' : task.status === 'blocked' ? 'Blocked' : 'To Do'}
                   </div>
                   <div className={`text-xs ${isOverdue ? 'text-red-400' : 'text-slate-400'}`}>
-                    {new Date(task.due_date).toLocaleDateString()}
+                    {formatLocalDate(task.due_date)}
                   </div>
                 </div>
                 <div className="text-white font-medium text-sm mb-1">{task.description}</div>
@@ -1213,7 +1213,7 @@ function TasksView({ tasks, sponsors, teamMembers, currentUserId, taskFilter, se
 
   const TaskCard = ({ task }) => {
     const sponsor = sponsors.find(s => s.id === task.sponsor_id);
-    const isOverdue = task.status !== 'completed' && new Date(task.due_date) < new Date();
+    const isOverdue = task.status !== 'completed' && isDateOverdue(task.due_date);
 
     return (
       <div className={`p-4 bg-slate-900/50 rounded-lg border ${isOverdue ? 'border-red-500/50' : 'border-transparent'} hover:border-slate-600 transition-all`}>
@@ -1249,7 +1249,7 @@ function TasksView({ tasks, sponsors, teamMembers, currentUserId, taskFilter, se
               )}
               <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-400' : 'text-slate-400'}`}>
                 <Calendar className="w-3 h-3" />
-                {new Date(task.due_date).toLocaleDateString()}
+                {formatLocalDate(task.due_date)}
                 {isOverdue && ' (Overdue)'}
               </span>
               <span className="text-slate-500 flex items-center gap-1">

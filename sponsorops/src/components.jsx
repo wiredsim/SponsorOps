@@ -1,6 +1,36 @@
 import React, { useState, useRef } from 'react';
 import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image, Mail, Search, Flame, ThermometerSun, Snowflake, CheckCircle2 } from 'lucide-react';
 
+// Helper: Get local date string (YYYY-MM-DD) without timezone issues
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Helper: Get date X days from now in local time
+const getLocalDatePlusDays = (days) => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return getLocalDateString(date);
+};
+
+// Helper: Check if a date string is before today (overdue)
+export const isDateOverdue = (dateString) => {
+  if (!dateString) return false;
+  const today = getLocalDateString();
+  return dateString < today;
+};
+
+// Helper: Parse date string and display in local format
+export const formatLocalDate = (dateString) => {
+  if (!dateString) return '';
+  // Add time component to avoid timezone shift
+  const date = new Date(dateString + 'T12:00:00');
+  return date.toLocaleDateString();
+};
+
 // Sponsor Modal Component
 export function SponsorModal({ sponsor, onClose, onSave, statusOptions }) {
   const [formData, setFormData] = useState(sponsor || {
@@ -342,7 +372,7 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
                     <div className="flex-1">
                       <div className="text-white font-medium">{task.description}</div>
                       <div className="text-sm text-slate-400 mt-1">
-                        Due: {new Date(task.due_date).toLocaleDateString()}
+                        Due: {formatLocalDate(task.due_date)}
                       </div>
                     </div>
                   </div>
@@ -382,7 +412,7 @@ export function TaskModal({ sponsors, teamMembers = [], onClose, onSave, task = 
     id: task.id,
     sponsorId: task.sponsor_id || '',
     description: task.description || '',
-    dueDate: task.due_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    dueDate: task.due_date || getLocalDatePlusDays(7),
     priority: task.priority || 'medium',
     status: task.status || 'todo',
     category: task.category || 'general',
@@ -391,7 +421,7 @@ export function TaskModal({ sponsors, teamMembers = [], onClose, onSave, task = 
   } : {
     sponsorId: '',
     description: '',
-    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    dueDate: getLocalDatePlusDays(7),
     priority: 'medium',
     status: 'todo',
     category: 'general',
