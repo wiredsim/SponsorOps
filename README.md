@@ -1,226 +1,228 @@
-# SponsorOps 🚀
+# SponsorOps
 
-A comprehensive FRC (FIRST Robotics Competition) Sponsor CRM built with React, Supabase, and deployed on Netlify.
+A comprehensive sponsor relationship management platform for FRC (FIRST Robotics Competition) teams. Built with React, Supabase, and Cloudflare.
+
+**Live:** [sponsorops.net](https://sponsorops.net)
 
 ## Features
 
-- 📊 **Dashboard** - Quick overview of all sponsor activities
-- 🏢 **Sponsor Management** - Complete CRM for tracking companies and contacts
-- ✅ **Task & Reminder System** - Never miss a follow-up
-- 💬 **Interaction History** - Log every email, call, and meeting
-- 🎯 **Team Info** - Centralized messaging for sponsor outreach
-- 🔍 **Search & Filter** - Find sponsors instantly
-- 📱 **Responsive Design** - Works on all devices
+### Core CRM
+- **Dashboard** - Overview of sponsor pipeline, tasks, and team activity
+- **Sponsor Management** - Full CRM for tracking companies, contacts, and relationships
+- **Task System** - Kanban-style task board with assignments and due dates
+- **Interaction History** - Log emails, calls, meetings, and visits
+- **Search & Filter** - Find sponsors by status, name, or contact
+
+### Outreach Tools
+- **Playbook System** - Email templates, phone scripts, meeting guides, and tips
+- **Email Composer** - Guided email composition with coaching tips
+- **Detective Worksheet** - Interactive sponsor research tool with lead scoring
+- **Variables System** - Merge fields for personalized templates (`{{team_name}}`, `{{contact_name}}`, etc.)
+
+### Team Features
+- **Multi-team Support** - Invite-only teams with admin/member roles
+- **Team Specs** - Centralized team info, achievements, and goals
+- **Activity Tracking** - Auto-log emails by BCC'ing `log@sponsorops.net`
+
+### Authentication
+- Magic link sign-in
+- Email/password sign-in
+- Google OAuth
+- Account settings for password setup
 
 ## Tech Stack
 
-- **Frontend**: React 18 + Vite
-- **Database**: Supabase (PostgreSQL)
-- **Styling**: Tailwind CSS
-- **Icons**: Lucide React
-- **Hosting**: Netlify
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18 + Vite |
+| Database | Supabase (PostgreSQL) |
+| Auth | Supabase Auth |
+| Hosting | Cloudflare Pages |
+| Email (Outbound) | Resend |
+| Email (Inbound) | Resend + Cloudflare Workers |
+| Styling | Tailwind CSS |
+| Icons | Lucide React |
 
-## Setup Instructions
+## Architecture
 
-### 1. Set Up Supabase
+```
+sponsorops.net (Cloudflare Pages)
+    ↓
+React SPA
+    ↓
+Supabase (Database + Auth + RLS)
 
-1. Go to [supabase.com](https://supabase.com) and create a free account
-2. Click "New Project"
-3. Fill in your project details:
-   - Name: `sponsorops`
-   - Database Password: (create a strong password)
-   - Region: Choose closest to you
-4. Wait for project to finish setting up (~2 minutes)
+log@sponsorops.net (Resend Inbound)
+    ↓
+Webhook → Cloudflare Worker
+    ↓
+Auto-log interaction in Supabase
+```
 
-5. **Create the database tables**:
-   - In your Supabase dashboard, go to SQL Editor (left sidebar)
-   - Click "New Query"
-   - Copy the entire contents of `supabase-schema.sql` from this repo
-   - Paste it into the SQL Editor
-   - Click "Run" or press Ctrl+Enter
-   - You should see "Success. No rows returned"
+## Project Structure
 
-6. **Get your API credentials**:
-   - Go to Settings → API (left sidebar)
-   - Copy your `Project URL` - this is your `VITE_SUPABASE_URL`
-   - Copy your `anon public` key - this is your `VITE_SUPABASE_ANON_KEY`
+```
+sponsorops/
+├── src/
+│   ├── App.jsx              # Main app component, routing, state
+│   ├── AuthContext.jsx      # Authentication provider
+│   ├── TeamContext.jsx      # Team/membership provider
+│   ├── components.jsx       # Shared UI components
+│   ├── PlaybookSystem.jsx   # Email/phone templates
+│   ├── EmailComposer.jsx    # Guided email composition
+│   ├── DetectiveWorksheet.jsx # Sponsor research tool
+│   ├── VariablesEditor.jsx  # Merge field management
+│   ├── AccountSettings.jsx  # User password/profile settings
+│   ├── TeamSettings.jsx     # Team admin settings
+│   ├── TeamSetup.jsx        # New user team join flow
+│   ├── LoginPage.jsx        # Authentication UI
+│   ├── supabaseClient.js    # Supabase client config
+│   └── auditLog.js          # Audit logging utility
+├── workers/
+│   └── email-logger/        # Cloudflare Worker for inbound email
+│       ├── src/index.js
+│       ├── wrangler.toml
+│       └── package.json
+├── supabase-schema.sql      # Database schema
+├── supabase-migration-*.sql # Schema migrations
+└── .env.local               # Environment variables (not committed)
+```
 
-### 2. Deploy to Netlify
+## Development Setup
 
-#### Option A: Deploy from GitHub (Recommended)
+### Prerequisites
+- Node.js 18+
+- npm
+- Supabase account
+- Cloudflare account (for deployment)
+- Resend account (for email)
 
-1. **Push your code to GitHub**:
+### Local Development
+
+1. **Clone and install:**
    ```bash
-   # Initialize git (if not already done)
-   git init
-   git add .
-   git commit -m "Initial commit"
-   
-   # Create a new repository on GitHub, then:
-   git remote add origin https://github.com/yourusername/sponsorops.git
-   git branch -M main
-   git push -u origin main
-   ```
-
-2. **Connect to Netlify**:
-   - Go to [netlify.com](https://netlify.com) and sign up/login
-   - Click "Add new site" → "Import an existing project"
-   - Choose "GitHub" and authorize Netlify
-   - Select your `sponsorops` repository
-   
-3. **Configure build settings**:
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-   - Click "Show advanced" → "New variable" and add:
-     - `VITE_SUPABASE_URL` = (your Supabase project URL)
-     - `VITE_SUPABASE_ANON_KEY` = (your Supabase anon key)
-   
-4. **Deploy**:
-   - Click "Deploy site"
-   - Wait 2-3 minutes for build to complete
-   - Your site is live! 🎉
-
-#### Option B: Deploy with Netlify CLI
-
-1. **Install Netlify CLI**:
-   ```bash
-   npm install -g netlify-cli
-   ```
-
-2. **Login to Netlify**:
-   ```bash
-   netlify login
-   ```
-
-3. **Initialize and deploy**:
-   ```bash
-   netlify init
-   # Follow prompts to create new site
-   
-   # Set environment variables
-   netlify env:set VITE_SUPABASE_URL "your-supabase-url"
-   netlify env:set VITE_SUPABASE_ANON_KEY "your-supabase-anon-key"
-   
-   # Deploy
-   netlify deploy --prod
-   ```
-
-### 3. Local Development (Optional)
-
-If you want to run locally for development:
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/sponsorops.git
-   cd sponsorops
-   ```
-
-2. **Install dependencies**:
-   ```bash
+   git clone https://github.com/wiredsim/SponsorOps.git
+   cd SponsorOps/sponsorops
    npm install
    ```
 
-3. **Set up environment variables**:
+2. **Configure environment:**
    ```bash
-   cp .env.example .env
-   # Edit .env and add your Supabase credentials
+   cp .env.example .env.local
+   # Edit .env.local with your Supabase credentials
    ```
 
-4. **Run development server**:
+3. **Run development server:**
    ```bash
    npm run dev
    ```
-   
-5. Open [http://localhost:3000](http://localhost:3000)
 
-## Usage Guide
+4. Open [http://localhost:5173](http://localhost:5173)
 
-### Adding Sponsors
+### Environment Variables
 
-1. Click "Add Sponsor" button
-2. Fill in company details (name is required)
-3. Select status (Research, Email Sent, Active, etc.)
-4. Add contact information
-5. Save!
-
-### Logging Interactions
-
-1. Click on any sponsor to open details
-2. Go to "Interactions" tab
-3. Click "Log Interaction"
-4. Select type (Email, Call, Meeting, Visit)
-5. Add notes about what was discussed
-6. Save!
-
-### Creating Tasks
-
-1. Go to "Tasks" view or click a sponsor
-2. Click "Add Task"
-3. Select sponsor and add description
-4. Set due date
-5. Track progress and check off when complete
-
-### Updating Team Info
-
-1. Go to "Team Info" view
-2. Click "Edit Team Info"
-3. Fill in your season details, goals, achievements
-4. This info helps you craft consistent sponsor messages!
-5. Save changes
-
-## Customization
-
-### Branding
-
-To customize colors and branding, edit `src/App.jsx` and `src/components.jsx`:
-
-- Orange/Red gradients: Search for `from-orange-500 to-red-600`
-- Blue tones: Search for `blue-` color classes
-- Font: Change the Google Fonts import in `index.html`
-
-### Status Options
-
-To modify status types, edit the `statusOptions` array in `src/App.jsx`:
-
-```javascript
-const statusOptions = [
-  { value: 'research', label: 'Research Phase', color: 'bg-gray-500' },
-  // Add your own statuses here
-];
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-## Troubleshooting
+## Deployment
 
-### "Error loading data"
-- Check that environment variables are set correctly in Netlify
-- Verify Supabase URL and API key are correct
-- Make sure database tables were created successfully
+### Cloudflare Pages (Production)
 
-### Build fails on Netlify
-- Check that `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set
-- Verify build command is `npm run build`
-- Check build logs for specific errors
+The app auto-deploys from the `master` branch via Cloudflare Pages.
 
-### Data not saving
-- Check browser console for errors
-- Verify Supabase RLS policies are set correctly
-- Make sure you ran the full SQL schema
+**Build settings:**
+- Root directory: `sponsorops`
+- Build command: `npm run build`
+- Build output: `dist`
 
-## Security Notes
+### Email Logger Worker
 
-⚠️ **Important**: This app uses public access policies for simplicity. For production use:
+```bash
+cd sponsorops/workers/email-logger
+npx wrangler deploy
+```
 
-1. Implement proper authentication (Supabase Auth)
-2. Update RLS policies to restrict access
-3. Add team/organization isolation
-4. Consider adding rate limiting
+**Required secrets:**
+```bash
+npx wrangler secret put SUPABASE_URL
+npx wrangler secret put SUPABASE_SERVICE_KEY
+```
 
-## Support
+## Database Migrations
 
-For issues or questions:
-- Check the Supabase docs: [supabase.com/docs](https://supabase.com/docs)
-- Check Netlify docs: [docs.netlify.com](https://docs.netlify.com)
-- Open an issue on GitHub
+SQL migrations are in the project root with `supabase-migration-*.sql` naming.
+
+Run in Supabase SQL Editor:
+1. `supabase-schema.sql` - Initial schema
+2. `supabase-migration-teams.sql` - Multi-team support
+3. `supabase-migration-team-info-fields.sql` - Team variables
+4. `supabase-migration-playbooks.sql` - Custom playbooks
+5. `supabase-migration-research.sql` - Research/lead scoring
+
+## Working with Claude
+
+This project is actively developed with Claude Code. Claude has full context of:
+
+### Codebase Knowledge
+- Complete understanding of all React components and their relationships
+- Database schema and RLS policies
+- Authentication flow and team membership logic
+- Email template system and merge fields
+- Cloudflare Workers for inbound email processing
+
+### Claude Can Help With
+- **Feature Development** - Adding new features, components, or pages
+- **Bug Fixes** - Debugging issues across the stack
+- **Database Changes** - Schema migrations, RLS policies
+- **Deployment** - Cloudflare Pages, Workers, Resend configuration
+- **Refactoring** - Code organization, performance improvements
+- **Documentation** - Updating docs, adding comments
+
+### Key Context Files
+When working with Claude, these files provide important context:
+- `src/App.jsx` - Main app structure and state
+- `src/components.jsx` - Shared components and utilities
+- `src/AuthContext.jsx` & `src/TeamContext.jsx` - Auth/team state
+- `supabase-schema.sql` - Database structure
+- `.env.local` - Configuration (don't share secrets publicly)
+
+### Example Prompts
+- "Add a new field to the sponsor form for tracking donation amounts"
+- "Fix the date picker showing wrong timezone"
+- "Create a report view showing sponsor pipeline by status"
+- "Add email open tracking to the activity log"
+
+## API Reference
+
+### Merge Fields (Variables)
+
+Use in Playbook templates with `{{variable_name}}` syntax:
+
+**Sponsor Variables:**
+- `{{company_name}}` - Sponsor company name
+- `{{contact_name}}` - Contact person's name
+- `{{contact_title}}` - Contact's job title
+- `{{contact_email}}` - Contact's email
+- `{{industry}}` - Company industry
+
+**Team Variables:**
+- `{{team_name}}` - Your team's name
+- `{{team_number}}` - FRC team number
+- `{{team_location}}` - City/town
+- `{{team_size}}` - Number of students
+- `{{season_year}}` - Competition year
+
+**List Variables (bullet points):**
+- `{{past_achievements}}` - Accomplishments with sponsor help
+- `{{future_goals}}` - What you can do with support
+- `{{team_facts}}` - Quick facts about your team
+
+**Sender Variables (filled manually):**
+- `{{sender_name}}` - Person sending the email
+- `{{sender_email}}` - Sender's email
+- `{{personalization_sentence}}` - Custom hook for this company
 
 ## License
 
@@ -228,4 +230,4 @@ MIT
 
 ---
 
-**Built for FRC teams by mentors who get it.** Good luck with your fundraising! 🤖🎉
+**Built for FRC teams who take sponsor relationships seriously.**
