@@ -43,6 +43,25 @@ export function AuthProvider({ children }) {
     return { error };
   };
 
+  const signInWithPassword = async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+    return { error };
+  };
+
+  const signUp = async (email, password) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: window.location.origin
+      }
+    });
+    return { error };
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     return { error };
@@ -53,6 +72,8 @@ export function AuthProvider({ children }) {
     loading,
     signInWithMagicLink,
     signInWithGoogle,
+    signInWithPassword,
+    signUp,
     signOut
   };
 
