@@ -89,13 +89,13 @@ export default function TeamSetup() {
               Pending Invitations
             </h2>
 
-            {pendingInvites.map((invite) => (
+            {pendingInvites.filter(invite => invite.team).map((invite) => (
               <div
                 key={invite.id}
                 className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50"
               >
                 <div className="flex items-center gap-4 mb-4">
-                  {invite.team.logo_url ? (
+                  {invite.team?.logo_url ? (
                     <img
                       src={invite.team.logo_url}
                       alt={invite.team.name}

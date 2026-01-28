@@ -21,7 +21,14 @@ CREATE POLICY "user_profiles_insert_own" ON user_profiles
     FOR INSERT TO authenticated
     WITH CHECK (id = auth.uid());
 
--- Allow users to upsert (select + insert/update) their own profile
+-- Allow users to update their own profile (needed for upsert)
+DROP POLICY IF EXISTS "user_profiles_update_own" ON user_profiles;
+CREATE POLICY "user_profiles_update_own" ON user_profiles
+    FOR UPDATE TO authenticated
+    USING (id = auth.uid())
+    WITH CHECK (id = auth.uid());
+
+-- Allow users to select their own profile and teammates
 DROP POLICY IF EXISTS "user_profiles_select_own" ON user_profiles;
 CREATE POLICY "user_profiles_select_own" ON user_profiles
     FOR SELECT TO authenticated
