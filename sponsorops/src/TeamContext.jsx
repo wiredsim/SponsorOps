@@ -29,6 +29,20 @@ export function TeamProvider({ children }) {
     setError(null);
 
     try {
+      // Ensure user profile exists (for new users)
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          display_name: user.email.split('@')[0]
+        }, { onConflict: 'id' });
+
+      if (profileError) {
+        console.warn('Could not upsert user profile:', profileError);
+        // Don't throw - this is not critical
+      }
+
       // Load user's teams with their role
       const { data: memberData, error: memberError } = await supabase
         .from('team_members')
@@ -44,12 +58,17 @@ export function TeamProvider({ children }) {
         `)
         .eq('user_id', user.id);
 
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error('Error loading team memberships:', memberError);
+        // Don't throw - user might just not be in any teams yet
+      }
 
-      const userTeams = (memberData || []).map(m => ({
-        ...m.team,
-        role: m.role
-      }));
+      const userTeams = (memberData || [])
+        .filter(m => m.team) // Filter out any null teams
+        .map(m => ({
+          ...m.team,
+          role: m.role
+        }));
 
       setTeams(userTeams);
 
@@ -62,9 +81,12 @@ export function TeamProvider({ children }) {
       } else if (userTeams.length > 0) {
         setCurrentTeam(userTeams[0]);
         localStorage.setItem('currentTeamId', userTeams[0].id);
+      } else {
+        setCurrentTeam(null);
       }
 
-      // Load pending invites for this user's email
+      // Load pending invites for this user's email (case-insensitive)
+      const userEmail = user.email.toLowerCase();
       const { data: inviteData, error: inviteError } = await supabase
         .from('team_invites')
         .select(`
@@ -79,13 +101,17 @@ export function TeamProvider({ children }) {
             logo_url
           )
         `)
-        .eq('email', user.email)
+        .ilike('email', userEmail)
         .is('accepted_at', null)
         .gt('expires_at', new Date().toISOString());
 
-      if (inviteError) throw inviteError;
-
-      setPendingInvites(inviteData || []);
+      if (inviteError) {
+        console.error('Error loading invites:', inviteError);
+        // Don't throw - just means no invites found or RLS issue
+        setPendingInvites([]);
+      } else {
+        setPendingInvites(inviteData || []);
+      }
 
     } catch (err) {
       console.error('Error loading teams:', err);

@@ -5,11 +5,20 @@ import { useAuth } from './AuthContext';
 
 export default function TeamSetup() {
   const { user } = useAuth();
-  const { pendingInvites, hasPendingInvites, acceptInvite, createTeam, loading } = useTeam();
+  const { pendingInvites, hasPendingInvites, acceptInvite, createTeam, loading, error: teamError } = useTeam();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createFormData, setCreateFormData] = useState({ name: '', teamNumber: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+
+  // Debug logging
+  console.log('TeamSetup render:', {
+    userEmail: user?.email,
+    pendingInvites,
+    hasPendingInvites,
+    loading,
+    teamError
+  });
 
   const handleAcceptInvite = async (inviteId) => {
     setSubmitting(true);
