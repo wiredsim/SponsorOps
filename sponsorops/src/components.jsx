@@ -201,7 +201,7 @@ export function SponsorModal({ sponsor, onClose, onSave, statusOptions }) {
 }
 
 // Lead temperature display helper
-const LeadTemperatureDisplay = ({ temperature, score }) => {
+export const LeadTemperatureDisplay = ({ temperature, score }) => {
   if (!temperature) return null;
 
   const config = {
