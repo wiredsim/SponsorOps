@@ -775,7 +775,8 @@ function AppContent() {
                   { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
                   { id: 'sponsors', icon: Building2, label: 'Sponsors' },
                   { id: 'tasks', icon: CheckCircle2, label: 'Tasks' },
-                  { id: 'playbook', icon: BookOpen, label: 'Playbook' }
+                  { id: 'playbook', icon: BookOpen, label: 'Playbook' },
+                  { id: 'team-specs', icon: Award, label: 'Team Specs' }
                 ].map(item => (
                   <button
                     key={item.id}
@@ -841,13 +842,6 @@ function AppContent() {
                     <div className="px-4 py-2 border-b border-slate-700">
                       <div className="text-sm text-white font-medium">{user.email}</div>
                     </div>
-                    <button
-                      onClick={() => { setView('team-specs'); setShowProfileMenu(false); }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-slate-700 transition-all flex items-center gap-3"
-                    >
-                      <Award className="w-4 h-4 text-slate-400" />
-                      Team Specs
-                    </button>
                     {isAdmin && (
                       <button
                         onClick={() => { setShowTeamSettings(true); setShowProfileMenu(false); }}
