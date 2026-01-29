@@ -108,38 +108,16 @@ sponsorops/
 └── .env.local                 # Environment variables (not committed)
 ```
 
-## Development Setup
+## Setup
 
 ### Prerequisites
-- Node.js 18+
-- npm
 - Supabase account
-- Cloudflare account (for deployment)
+- Cloudflare account (for hosting)
 - Resend account (for email)
 
-### Local Development
-
-1. **Clone and install:**
-   ```bash
-   git clone https://github.com/wiredsim/SponsorOps.git
-   cd SponsorOps/sponsorops
-   npm install
-   ```
-
-2. **Configure environment:**
-   ```bash
-   cp .env.example .env.local
-   # Edit .env.local with your Supabase credentials
-   ```
-
-3. **Run development server:**
-   ```bash
-   npm run dev
-   ```
-
-4. Open [http://localhost:3000](http://localhost:3000)
-
 ### Environment Variables
+
+Set these in Cloudflare Pages project settings:
 
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co

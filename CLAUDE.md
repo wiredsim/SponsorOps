@@ -121,14 +121,9 @@ SponsorOps is a sponsor relationship management platform for FRC robotics teams.
 
 ## Environment
 
-### Local Development
-```bash
-cd sponsorops
-npm install
-npm run dev
-```
+There is no local development server. The app runs only on Cloudflare Pages at **sponsorops.net**, deployed from the `master` branch.
 
-### Required Environment Variables
+### Cloudflare Pages Environment Variables
 ```
 VITE_SUPABASE_URL=https://xxx.supabase.co
 VITE_SUPABASE_ANON_KEY=xxx
@@ -160,11 +155,12 @@ npx wrangler secret put SUPABASE_SERVICE_KEY
 
 ## Testing Changes
 
-1. Run `npm run dev` locally
-2. Test the specific feature/fix
+There is no local dev environment. All testing happens on production after deploying:
+
+1. Push to `master` to trigger Cloudflare Pages deployment
+2. Verify the change at https://sponsorops.net
 3. Check browser console for errors
 4. Test on mobile viewport (responsive)
-5. Push to master for production deploy
 
 ## IMPORTANT: Deployment Workflow
 

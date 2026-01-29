@@ -55,7 +55,7 @@
 
 ### Step 4: Share with Your Team
 
-1. Copy the Cloudflare Pages URL (looks like: `https://sponsorops.pages.dev` or your custom domain)
+1. Copy the Cloudflare Pages URL (e.g., `https://sponsorops.net`)
 2. Share with all your students!
 3. Everyone can access the same data
 
