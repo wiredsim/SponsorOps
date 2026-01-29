@@ -74,7 +74,7 @@ const contactTitles = [
   { value: 'other', label: 'Other', priority: 6 },
 ];
 
-export function DetectiveWorksheet({ sponsor, onClose, onSave }) {
+export function DetectiveWorksheet({ sponsor, onClose, onSave, embedded = false }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [research, setResearch] = useState({
     // Basics
@@ -730,10 +730,10 @@ export function DetectiveWorksheet({ sponsor, onClose, onSave }) {
   const currentMission = missions[currentStep];
   const MissionIcon = currentMission.icon;
 
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden border border-slate-700 flex flex-col">
-        {/* Header */}
+  const content = (
+    <div className={embedded ? "flex flex-col h-full" : "bg-slate-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden border border-slate-700 flex flex-col"}>
+      {/* Header - hide in embedded mode since the tab provides context */}
+      {!embedded && (
         <div className="p-6 border-b border-slate-700 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -749,78 +749,88 @@ export function DetectiveWorksheet({ sponsor, onClose, onSave }) {
               <X className="w-6 h-6" />
             </button>
           </div>
-
-          {/* Progress bar */}
-          <div className="flex gap-1">
-            {missions.map((m, i) => (
-              <div
-                key={m.id}
-                className={`h-2 flex-1 rounded-full transition-all ${
-                  i < currentStep ? 'bg-green-500' :
-                  i === currentStep ? 'bg-orange-500' :
-                  'bg-slate-700'
-                }`}
-              />
-            ))}
-          </div>
         </div>
+      )}
 
-        {/* Mission header */}
-        <div className="px-6 py-4 bg-slate-900/50 border-b border-slate-700 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${currentStep === missions.length - 1 ? 'bg-green-500/20' : 'bg-orange-500/20'}`}>
-              <MissionIcon className={`w-5 h-5 ${currentStep === missions.length - 1 ? 'text-green-400' : 'text-orange-400'}`} />
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 uppercase tracking-wide">
-                Mission {currentStep + 1} of {missions.length}
-              </div>
-              <h4 className="font-bold text-white">{currentMission.title}</h4>
-            </div>
-          </div>
-          <p className="text-sm text-slate-400 mt-2">{currentMission.description}</p>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {currentStep === 0 && renderBasics()}
-          {currentStep === 1 && renderConnections()}
-          {currentStep === 2 && renderContact()}
-          {currentStep === 3 && renderPersonalization()}
-          {currentStep === 4 && renderResults()}
-        </div>
-
-        {/* Footer */}
-        <div className="p-6 border-t border-slate-700 flex items-center justify-between flex-shrink-0">
-          <button
-            onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-            disabled={currentStep === 0}
-            className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Back
-          </button>
-
-          {currentStep < missions.length - 1 ? (
-            <button
-              onClick={() => setCurrentStep(currentStep + 1)}
-              disabled={!canProceed()}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-medium hover:shadow-lg hover:shadow-orange-500/30 transition-all disabled:opacity-50 disabled:hover:shadow-none"
-            >
-              Continue
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              onClick={handleSave}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-medium hover:shadow-lg hover:shadow-green-500/30 transition-all"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Save Research
-            </button>
-          )}
-        </div>
+      {/* Progress bar */}
+      <div className={`flex gap-1 ${embedded ? 'mb-4' : 'px-6 pt-4'}`}>
+        {missions.map((m, i) => (
+          <div
+            key={m.id}
+            className={`h-2 flex-1 rounded-full transition-all ${
+              i < currentStep ? 'bg-green-500' :
+              i === currentStep ? 'bg-orange-500' :
+              'bg-slate-700'
+            }`}
+          />
+        ))}
       </div>
+
+      {/* Mission header */}
+      <div className={`${embedded ? 'py-3 mb-4' : 'px-6 py-4'} bg-slate-900/50 border-b border-slate-700 flex-shrink-0`}>
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg ${currentStep === missions.length - 1 ? 'bg-green-500/20' : 'bg-orange-500/20'}`}>
+            <MissionIcon className={`w-5 h-5 ${currentStep === missions.length - 1 ? 'text-green-400' : 'text-orange-400'}`} />
+          </div>
+          <div>
+            <div className="text-xs text-slate-500 uppercase tracking-wide">
+              Step {currentStep + 1} of {missions.length}
+            </div>
+            <h4 className="font-bold text-white">{currentMission.title}</h4>
+          </div>
+        </div>
+        <p className="text-sm text-slate-400 mt-2">{currentMission.description}</p>
+      </div>
+
+      {/* Content */}
+      <div className={`flex-1 overflow-y-auto ${embedded ? 'pb-4' : 'p-6'}`}>
+        {currentStep === 0 && renderBasics()}
+        {currentStep === 1 && renderConnections()}
+        {currentStep === 2 && renderContact()}
+        {currentStep === 3 && renderPersonalization()}
+        {currentStep === 4 && renderResults()}
+      </div>
+
+      {/* Footer */}
+      <div className={`${embedded ? 'pt-4 border-t' : 'p-6 border-t'} border-slate-700 flex items-center justify-between flex-shrink-0`}>
+        <button
+          onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+          disabled={currentStep === 0}
+          className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          Back
+        </button>
+
+        {currentStep < missions.length - 1 ? (
+          <button
+            onClick={() => setCurrentStep(currentStep + 1)}
+            disabled={!canProceed()}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-medium hover:shadow-lg hover:shadow-orange-500/30 transition-all disabled:opacity-50 disabled:hover:shadow-none"
+          >
+            Continue
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            onClick={handleSave}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-medium hover:shadow-lg hover:shadow-green-500/30 transition-all"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            Save Research
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      {content}
     </div>
   );
 }

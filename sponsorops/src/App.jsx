@@ -17,12 +17,14 @@ import TeamSettings from './TeamSettings';
 import { logAudit } from './auditLog';
 import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm, taskCategories, taskStatuses, isDateOverdue, formatLocalDate } from './components';
 import EmailComposer from './EmailComposer';
-import DetectiveWorksheet from './DetectiveWorksheet';
 import VariablesEditor from './VariablesEditor';
 import { PlaybookManager } from './PlaybookSystem';
 import AccountSettings from './AccountSettings';
 import EmailQueue from './EmailQueue';
 import PhoneScriptPlayer from './PhoneScriptPlayer';
+
+// Task notification worker URL
+const TASK_NOTIFIER_URL = 'https://sponsorops-task-notifier.wiredsim.workers.dev';
 
 function AppContent() {
   const { user, signOut } = useAuth();
@@ -45,7 +47,6 @@ function AppContent() {
   const [editingTask, setEditingTask] = useState(null);
   const [taskFilter, setTaskFilter] = useState('all'); // 'all', 'mine', 'unassigned'
   const [showEmailComposer, setShowEmailComposer] = useState(false);
-  const [showDetectiveWorksheet, setShowDetectiveWorksheet] = useState(false);
   const [customPlaybooks, setCustomPlaybooks] = useState([]);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [emailQueue, setEmailQueue] = useState([]);
@@ -53,6 +54,7 @@ function AppContent() {
   const [showPhoneScriptPlayer, setShowPhoneScriptPlayer] = useState(false);
   const [activePhoneScript, setActivePhoneScript] = useState(null);
   const [phoneScriptSponsor, setPhoneScriptSponsor] = useState(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   // Load data when user or team changes
   useEffect(() => {
@@ -60,6 +62,96 @@ function AppContent() {
       loadData();
     }
   }, [user, currentTeam]);
+
+  // Send task assignment email notification
+  const sendTaskNotification = async (taskDescription, assigneeId, sponsorId) => {
+    if (!TASK_NOTIFIER_URL) return;
+
+    try {
+      const assignee = teamMembers.find(m => m.id === assigneeId);
+      if (!assignee?.email) return;
+
+      const sponsor = sponsorId ? sponsors.find(s => s.id === sponsorId) : null;
+
+      await fetch(TASK_NOTIFIER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assigneeEmail: assignee.email,
+          assigneeName: assignee.display_name || assignee.email.split('@')[0],
+          taskDescription,
+          sponsorName: sponsor?.name || null,
+          assignedByEmail: user.email,
+          teamName: currentTeam?.name || null,
+        }),
+      });
+    } catch (err) {
+      console.warn('Task notification failed:', err);
+    }
+  };
+
+  // Generate annual tasks for sponsors based on team_info.annual_tasks templates
+  const generateAnnualTasks = async (sponsorsData, tasksData, teamInfoData) => {
+    if (!teamInfoData?.annual_tasks?.length || !sponsorsData?.length) return;
+
+    const currentYear = new Date().getFullYear();
+    const annualTasks = teamInfoData.annual_tasks;
+
+    // For each active sponsor (not declined/no-response), check if annual tasks exist for this year
+    const eligibleSponsors = sponsorsData.filter(s =>
+      s.status !== 'declined' && s.status !== 'no-response'
+    );
+
+    const tasksToCreate = [];
+
+    for (const sponsor of eligibleSponsors) {
+      for (const template of annualTasks) {
+        // Check if this annual task already exists for this sponsor this year
+        const alreadyExists = tasksData.some(t =>
+          t.sponsor_id === sponsor.id &&
+          t.description === template.description &&
+          t.due_date?.startsWith(String(currentYear))
+        );
+
+        if (!alreadyExists) {
+          const dueDate = `${currentYear}-${String(template.month).padStart(2, '0')}-15`;
+          tasksToCreate.push({
+            sponsor_id: sponsor.id,
+            team_id: currentTeam.id,
+            description: template.description,
+            category: template.category || 'general',
+            priority: template.priority || 'medium',
+            status: 'todo',
+            due_date: dueDate,
+            created_by: user.id
+          });
+        }
+      }
+    }
+
+    if (tasksToCreate.length > 0) {
+      try {
+        const { error } = await supabase
+          .from('tasks')
+          .insert(tasksToCreate);
+
+        if (error) {
+          console.warn('Could not generate annual tasks:', error);
+        } else {
+          // Reload tasks to show the newly generated ones
+          const { data: updatedTasks } = await supabase
+            .from('tasks')
+            .select('*')
+            .eq('team_id', currentTeam.id)
+            .is('deleted_at', null)
+            .order('due_date', { ascending: true });
+          if (updatedTasks) setTasks(updatedTasks);
+        }
+      } catch (err) {
+        console.warn('Error generating annual tasks:', err);
+      }
+    }
+  };
 
   const loadData = async () => {
     if (!currentTeam) return;
@@ -168,6 +260,9 @@ function AppContent() {
         console.warn('Could not load email queue:', emailQueueError);
       }
       setEmailQueue(emailQueueData || []);
+
+      // Generate annual tasks for sponsors if templates are defined
+      await generateAnnualTasks(sponsorsData, tasksData, teamInfoData);
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -359,6 +454,7 @@ function AppContent() {
         const newValues = {
           sponsor_id: task.sponsorId || task.sponsor_id || null,
           description: task.description,
+          notes: task.notes || null,
           due_date: task.dueDate || task.due_date,
           priority: task.priority,
           status: task.status || 'todo',
@@ -370,11 +466,20 @@ function AppContent() {
           updated_by: user.id
         };
 
+        // Check if assignment changed — trigger notification
+        const assignmentChanged = oldData?.assigned_to !== (task.assignedTo || task.assigned_to || null);
+        const newAssignee = task.assignedTo || task.assigned_to || null;
+
         // Update
         const { error } = await supabase
           .from('tasks')
           .update(newValues)
           .eq('id', task.id);
+
+        // Send assignment notification if needed
+        if (!error && assignmentChanged && newAssignee && newAssignee !== user.id) {
+          sendTaskNotification(task.description, newAssignee, task.sponsorId || task.sponsor_id);
+        }
 
         if (error) throw error;
 
@@ -393,6 +498,7 @@ function AppContent() {
         const newValues = {
           sponsor_id: task.sponsorId || null,
           description: task.description,
+          notes: task.notes || null,
           due_date: task.dueDate,
           priority: task.priority,
           status: task.status || 'todo',
@@ -410,6 +516,12 @@ function AppContent() {
           .insert([newValues])
           .select()
           .single();
+
+        // Send assignment notification for new task if assigned to someone else
+        const assignee = task.assignedTo || null;
+        if (!error && assignee && assignee !== user.id) {
+          sendTaskNotification(task.description, assignee, task.sponsorId);
+        }
 
         if (error) throw error;
 
@@ -484,6 +596,10 @@ function AppContent() {
 
       const newValues = {
         season_year: info.season_year || info.seasonYear,
+        team_size: info.team_size,
+        team_location: info.team_location,
+        variables: info.variables || {},
+        annual_tasks: info.annual_tasks || [],
         new_tech: info.new_tech || info.newTech,
         team_changes: info.team_changes || info.teamChanges,
         goals: info.goals,
@@ -494,50 +610,26 @@ function AppContent() {
       };
 
       if (existing) {
-        // Update
         const { error } = await supabase
           .from('team_info')
           .update(newValues)
           .eq('id', existing.id);
 
         if (error) throw error;
-
-        // Log audit
-        await logAudit({
-          userId: user.id,
-          userEmail: user.email,
-          tableName: 'team_info',
-          recordId: existing.id,
-          operation: 'UPDATE',
-          oldValues: existing,
-          newValues
-        });
       } else {
-        // Insert
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('team_info')
           .insert([newValues])
           .select()
           .single();
 
         if (error) throw error;
-
-        // Log audit
-        await logAudit({
-          userId: user.id,
-          userEmail: user.email,
-          tableName: 'team_info',
-          recordId: data.id,
-          operation: 'INSERT',
-          oldValues: null,
-          newValues
-        });
       }
 
-      await loadData();
+      // Update local state directly instead of full reload (avoids unmounting the form)
+      setTeamInfo({ ...teamInfo, ...info });
     } catch (error) {
       console.error('Error saving team info:', error);
-      alert('Error saving team info. Please try again.');
     }
   };
 
@@ -683,12 +775,11 @@ function AppContent() {
                   { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
                   { id: 'sponsors', icon: Building2, label: 'Sponsors' },
                   { id: 'tasks', icon: CheckCircle2, label: 'Tasks' },
-                  { id: 'playbook', icon: BookOpen, label: 'Playbook' },
-                  { id: 'team-specs', icon: Award, label: 'Team Specs' }
+                  { id: 'playbook', icon: BookOpen, label: 'Playbook' }
                 ].map(item => (
                   <button
                     key={item.id}
-                    onClick={() => setView(item.id)}
+                    onClick={() => { setView(item.id); setShowProfileMenu(false); }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
                       view === item.id
                         ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/50'
@@ -705,7 +796,7 @@ function AppContent() {
               {teams.length > 1 && (
                 <div className="relative">
                   <button
-                    onClick={() => setShowTeamSwitcher(!showTeamSwitcher)}
+                    onClick={() => { setShowTeamSwitcher(!showTeamSwitcher); setShowProfileMenu(false); }}
                     className="flex items-center gap-2 px-3 py-2 text-blue-200 hover:bg-slate-800 rounded-lg transition-all"
                   >
                     <Users className="w-4 h-4" />
@@ -734,39 +825,69 @@ function AppContent() {
                 </div>
               )}
 
-              {/* Team Settings (admin only) */}
-              {isAdmin && (
+              {/* Profile Dropdown */}
+              <div className="relative pl-4 border-l border-slate-700">
                 <button
-                  onClick={() => setShowTeamSettings(true)}
-                  className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
-                  title="Team Settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-              )}
-
-              {/* User menu */}
-              <div className="flex items-center gap-3 pl-4 border-l border-slate-700">
-                <span className="text-sm text-blue-300">{user.email}</span>
-                <button
-                  onClick={() => setShowAccountSettings(true)}
-                  className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
-                  title="Account Settings"
+                  onClick={() => { setShowProfileMenu(!showProfileMenu); setShowTeamSwitcher(false); }}
+                  className="flex items-center gap-2 px-3 py-2 text-blue-200 hover:bg-slate-800 rounded-lg transition-all"
                 >
                   <User className="w-4 h-4" />
+                  <span className="text-sm hidden md:inline">{user.email?.split('@')[0]}</span>
+                  <ChevronDown className="w-3 h-3" />
                 </button>
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
-                  title="Sign out"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
+
+                {showProfileMenu && (
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-slate-800 rounded-lg shadow-xl border border-slate-700 py-1 z-50">
+                    <div className="px-4 py-2 border-b border-slate-700">
+                      <div className="text-sm text-white font-medium">{user.email}</div>
+                    </div>
+                    <button
+                      onClick={() => { setView('team-specs'); setShowProfileMenu(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-slate-700 transition-all flex items-center gap-3"
+                    >
+                      <Award className="w-4 h-4 text-slate-400" />
+                      Team Specs
+                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => { setShowTeamSettings(true); setShowProfileMenu(false); }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-slate-700 transition-all flex items-center gap-3"
+                      >
+                        <Settings className="w-4 h-4 text-slate-400" />
+                        Team Settings
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setShowAccountSettings(true); setShowProfileMenu(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-slate-700 transition-all flex items-center gap-3"
+                    >
+                      <User className="w-4 h-4 text-slate-400" />
+                      Account
+                    </button>
+                    <div className="border-t border-slate-700 mt-1 pt-1">
+                      <button
+                        onClick={() => { handleSignOut(); setShowProfileMenu(false); }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-slate-700 transition-all flex items-center gap-3"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       </header>
+
+      {/* Close dropdowns when clicking outside */}
+      {(showProfileMenu || showTeamSwitcher) && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => { setShowProfileMenu(false); setShowTeamSwitcher(false); }}
+        />
+      )}
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Dashboard View */}
@@ -918,7 +1039,37 @@ function AppContent() {
           onDelete={() => deleteSponsor(selectedSponsor.id)}
           onAddInteraction={() => setShowAddInteraction(true)}
           onComposeEmail={() => setShowEmailComposer(true)}
-          onResearch={() => setShowDetectiveWorksheet(true)}
+          onSaveResearch={async (researchData) => {
+            const { error } = await supabase
+              .from('sponsors')
+              .update({
+                research_data: researchData,
+                contact_name: researchData.contactName || selectedSponsor.contact_name,
+                email: researchData.contactEmail || selectedSponsor.email,
+                phone: researchData.contactPhone || selectedSponsor.phone,
+                website: researchData.website || selectedSponsor.website,
+                industry: researchData.industry || selectedSponsor.industry,
+                notes: researchData.personalizationSentence
+                  ? `${selectedSponsor.notes || ''}\n\nPersonalization: ${researchData.personalizationSentence}`.trim()
+                  : selectedSponsor.notes,
+                lead_score: researchData.leadScore,
+                lead_temperature: researchData.leadTemperature,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', selectedSponsor.id);
+
+            if (error) {
+              console.error('Error saving research:', error);
+            } else {
+              await loadData();
+              setSelectedSponsor(prev => ({
+                ...prev,
+                research_data: researchData,
+                lead_score: researchData.leadScore,
+                lead_temperature: researchData.leadTemperature
+              }));
+            }
+          }}
           statusOptions={statusOptions}
         />
       )}
@@ -958,47 +1109,6 @@ function AppContent() {
               date: new Date().toISOString().split('T')[0]
             });
             setShowEmailComposer(false);
-          }}
-        />
-      )}
-
-      {showDetectiveWorksheet && selectedSponsor && (
-        <DetectiveWorksheet
-          sponsor={selectedSponsor}
-          onClose={() => setShowDetectiveWorksheet(false)}
-          onSave={async (researchData) => {
-            // Save research data to sponsor record
-            const { error } = await supabase
-              .from('sponsors')
-              .update({
-                research_data: researchData,
-                contact_name: researchData.contactName || selectedSponsor.contact_name,
-                email: researchData.contactEmail || selectedSponsor.email,
-                phone: researchData.contactPhone || selectedSponsor.phone,
-                website: researchData.website || selectedSponsor.website,
-                industry: researchData.industry || selectedSponsor.industry,
-                notes: researchData.personalizationSentence
-                  ? `${selectedSponsor.notes || ''}\n\nPersonalization: ${researchData.personalizationSentence}`.trim()
-                  : selectedSponsor.notes,
-                lead_score: researchData.leadScore,
-                lead_temperature: researchData.leadTemperature,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', selectedSponsor.id);
-
-            if (error) {
-              console.error('Error saving research:', error);
-            } else {
-              await loadData();
-              // Update selected sponsor with new data
-              setSelectedSponsor(prev => ({
-                ...prev,
-                research_data: researchData,
-                lead_score: researchData.leadScore,
-                lead_temperature: researchData.leadTemperature
-              }));
-            }
-            setShowDetectiveWorksheet(false);
           }}
         />
       )}
@@ -1132,6 +1242,48 @@ function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onA
     const member = teamMembers.find(m => m.id === userId);
     return member?.display_name || member?.email || 'Unassigned';
   };
+
+  // Welcome screen for new users with no sponsors
+  if (sponsors.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-8 border border-slate-700/50 max-w-2xl mx-auto text-center">
+          <div className="bg-gradient-to-br from-orange-500 to-red-600 p-4 rounded-2xl w-16 h-16 mx-auto mb-6 flex items-center justify-center">
+            <Target className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-3xl font-bold text-white mb-3">Welcome to SponsorOps!</h2>
+          <p className="text-blue-300 text-lg mb-8 max-w-md mx-auto">
+            Let's get your team's first sponsor added. It only takes a minute.
+          </p>
+
+          <div className="bg-slate-900/50 rounded-xl p-6 mb-8 text-left max-w-md mx-auto">
+            <h3 className="text-white font-semibold mb-4">Here's how to get started:</h3>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm flex-shrink-0">1</span>
+                <span className="text-slate-300">Think of a local business you'd like to ask for sponsorship</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="bg-orange-500/60 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm flex-shrink-0">2</span>
+                <span className="text-slate-400">Add their info and start tracking your outreach</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="bg-orange-500/30 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm flex-shrink-0">3</span>
+                <span className="text-slate-400">Use Playbooks for email and phone script templates</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={onAddSponsor}
+            className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-lg font-medium text-lg hover:shadow-lg hover:shadow-orange-500/50 transition-all"
+          >
+            Add Your First Sponsor
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1459,105 +1611,106 @@ function TasksView({ tasks, sponsors, teamMembers, currentUserId, taskFilter, se
   };
 
   const TaskCard = ({ task }) => {
+    const [expanded, setExpanded] = useState(false);
     const sponsor = sponsors.find(s => s.id === task.sponsor_id);
     const isOverdue = task.status !== 'completed' && isDateOverdue(task.due_date);
 
     return (
-      <div className={`p-4 bg-slate-900/50 rounded-lg border ${isOverdue ? 'border-red-500/50' : 'border-transparent'} hover:border-slate-600 transition-all`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              {getStatusIcon(task.status)}
-              <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(task.status)}`}>
-                {task.status === 'in_progress' ? 'In Progress' :
-                 task.status === 'blocked' ? 'Blocked' :
-                 task.status === 'completed' ? 'Completed' : 'To Do'}
-              </span>
-              {task.category && task.category !== 'general' && (
-                <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-400">
-                  {task.category}
-                </span>
-              )}
-              <span className={`text-xs ${getPriorityColor(task.priority)}`}>
-                {task.priority === 'high' ? '!!!' : task.priority === 'medium' ? '!!' : '!'}
-              </span>
-            </div>
+      <div
+        className={`p-4 bg-slate-900/50 rounded-lg border ${isOverdue ? 'border-red-500/50' : 'border-transparent'} hover:border-slate-600 transition-all cursor-pointer group`}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-start gap-3">
+          {/* Quick complete checkbox */}
+          {task.status !== 'completed' ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleStatusChange(task, 'completed'); }}
+              className="mt-0.5 w-5 h-5 rounded-full border-2 border-slate-500 hover:border-green-400 hover:bg-green-400/20 transition-all flex-shrink-0"
+              title="Mark complete"
+            />
+          ) : (
+            <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+          )}
 
-            <div className={`text-white font-medium mb-2 ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>
+          <div className="flex-1 min-w-0">
+            <div className={`text-white font-medium ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>
               {task.description}
             </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              {sponsor && (
-                <span className="text-blue-300 flex items-center gap-1">
-                  <Building2 className="w-3 h-3" />
-                  {sponsor.name}
-                </span>
-              )}
-              <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-400' : 'text-slate-400'}`}>
-                <Calendar className="w-3 h-3" />
+            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
+              {sponsor && <span className="text-blue-300">{sponsor.name}</span>}
+              {sponsor && task.due_date && <span className="text-slate-600">·</span>}
+              <span className={isOverdue ? 'text-red-400' : 'text-slate-400'}>
                 {formatLocalDate(task.due_date)}
                 {isOverdue && ' (Overdue)'}
               </span>
-              <span className="text-slate-500 flex items-center gap-1">
-                <User className="w-3 h-3" />
-                {getMemberName(task.assigned_to)}
-              </span>
+              {task.priority === 'high' && <span className="text-red-400">High</span>}
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          {/* Edit/Delete - visible on hover */}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
-              onClick={() => onEditTask(task)}
+              onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
               className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-all"
               title="Edit task"
             >
-              <Edit2 className="w-4 h-4" />
+              <Edit2 className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={() => onDeleteTask(task.id)}
+              onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id); }}
               className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition-all"
               title="Archive task"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* Quick status change buttons */}
-        {task.status !== 'completed' && (
-          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-700/50">
-            <span className="text-xs text-slate-500">Move to:</span>
-            {task.status !== 'todo' && (
-              <button
-                onClick={() => handleStatusChange(task, 'todo')}
-                className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all"
-              >
-                To Do
-              </button>
+        {/* Expanded details + status change */}
+        {expanded && (
+          <div className="mt-3 pt-3 border-t border-slate-700/50 space-y-2">
+            {task.notes && (
+              <p className="text-sm text-slate-300 bg-slate-900/50 rounded p-2">{task.notes}</p>
             )}
-            {task.status !== 'in_progress' && (
-              <button
-                onClick={() => handleStatusChange(task, 'in_progress')}
-                className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all"
-              >
-                In Progress
-              </button>
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <User className="w-3 h-3" />
+              {getMemberName(task.assigned_to)}
+              {task.category && task.category !== 'general' && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-purple-400">{task.category}</span>
+                </>
+              )}
+            </div>
+            {task.status !== 'completed' && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Move to:</span>
+                {task.status !== 'todo' && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleStatusChange(task, 'todo'); }}
+                    className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all"
+                  >
+                    To Do
+                  </button>
+                )}
+                {task.status !== 'in_progress' && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleStatusChange(task, 'in_progress'); }}
+                    className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all"
+                  >
+                    In Progress
+                  </button>
+                )}
+                {task.status !== 'blocked' && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleStatusChange(task, 'blocked'); }}
+                    className="text-xs px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                  >
+                    Blocked
+                  </button>
+                )}
+              </div>
             )}
-            {task.status !== 'blocked' && (
-              <button
-                onClick={() => handleStatusChange(task, 'blocked')}
-                className="text-xs px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
-              >
-                Blocked
-              </button>
-            )}
-            <button
-              onClick={() => handleStatusChange(task, 'completed')}
-              className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all"
-            >
-              Complete
-            </button>
           </div>
         )}
       </div>

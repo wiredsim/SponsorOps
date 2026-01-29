@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Edit2, Trash2, ExternalLink, MessageSquare, Plus, Upload, Image, Mail, Search, Flame, ThermometerSun, Snowflake, CheckCircle2, Users, DollarSign } from 'lucide-react';
 import ContactsEditor from './ContactsEditor';
 import DonationsEditor from './DonationsEditor';
+import { DetectiveWorksheet } from './DetectiveWorksheet';
 
 // Helper: Get local date string (YYYY-MM-DD) without timezone issues
 const getLocalDateString = (date = new Date()) => {
@@ -220,7 +221,7 @@ const LeadTemperatureDisplay = ({ temperature, score }) => {
 };
 
 // Sponsor Detail Modal
-export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEdit, onDelete, onAddInteraction, onComposeEmail, onResearch, statusOptions }) {
+export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEdit, onDelete, onAddInteraction, onComposeEmail, onSaveResearch, statusOptions }) {
   const [activeTab, setActiveTab] = useState('overview');
 
   return (
@@ -240,9 +241,6 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
               </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={onResearch} className="p-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600" title="Research sponsor">
-                <Search className="w-5 h-5" />
-              </button>
               <button onClick={onComposeEmail} className="p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600" title="Compose email">
                 <Mail className="w-5 h-5" />
               </button>
@@ -258,8 +256,8 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
             </div>
           </div>
 
-          <div className="flex gap-2">
-            {['overview', 'contacts', 'donations', 'interactions', 'tasks'].map(tab => (
+          <div className="flex gap-2 flex-wrap">
+            {['overview', 'research', 'contacts', 'donations', 'interactions', 'tasks'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -321,6 +319,98 @@ export function SponsorDetailModal({ sponsor, interactions, tasks, onClose, onEd
                   <h4 className="text-sm font-medium text-blue-300 mb-2">Notes</h4>
                   <p className="text-white bg-slate-900/50 p-4 rounded-lg">{sponsor.notes}</p>
                 </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'research' && (
+            <div className="space-y-4">
+              {/* Show existing research summary if available */}
+              {sponsor.research_data && !sponsor._showResearchForm && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-blue-300">
+                      <Search className="w-5 h-5" />
+                      <h4 className="font-medium">Research Profile</h4>
+                    </div>
+                    <button
+                      onClick={() => {
+                        // Toggle to show form for updating research
+                        sponsor._showResearchForm = true;
+                        setActiveTab('overview');
+                        setTimeout(() => setActiveTab('research'), 0);
+                      }}
+                      className="text-sm text-orange-400 hover:text-orange-300"
+                    >
+                      Update Research
+                    </button>
+                  </div>
+
+                  {sponsor.research_data.whatTheyDo && (
+                    <div className="bg-slate-900/50 rounded-lg p-4">
+                      <h5 className="text-sm font-medium text-blue-300 mb-1">What They Do</h5>
+                      <p className="text-white">{sponsor.research_data.whatTheyDo}</p>
+                    </div>
+                  )}
+
+                  {sponsor.research_data.personalizationSentence && (
+                    <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4">
+                      <h5 className="text-sm font-medium text-orange-300 mb-1">Why We're Reaching Out</h5>
+                      <p className="text-white italic">
+                        "We're reaching out to {sponsor.name} because {sponsor.research_data.personalizationSentence}"
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {sponsor.research_data.companySize && (
+                      <div className="bg-slate-900/50 rounded-lg p-3">
+                        <h5 className="text-xs font-medium text-blue-300 mb-1">Company Size</h5>
+                        <p className="text-white text-sm capitalize">{sponsor.research_data.companySize}</p>
+                      </div>
+                    )}
+                    {sponsor.research_data.location && (
+                      <div className="bg-slate-900/50 rounded-lg p-3">
+                        <h5 className="text-xs font-medium text-blue-300 mb-1">Location</h5>
+                        <p className="text-white text-sm">{sponsor.research_data.location}</p>
+                      </div>
+                    )}
+                    {sponsor.research_data.industry && (
+                      <div className="bg-slate-900/50 rounded-lg p-3">
+                        <h5 className="text-xs font-medium text-blue-300 mb-1">Industry</h5>
+                        <p className="text-white text-sm capitalize">{sponsor.research_data.industry}</p>
+                      </div>
+                    )}
+                    {sponsor.research_data.teamConnectionType && sponsor.research_data.teamConnectionType !== 'none' && (
+                      <div className="bg-slate-900/50 rounded-lg p-3">
+                        <h5 className="text-xs font-medium text-blue-300 mb-1">Team Connection</h5>
+                        <p className="text-white text-sm">{sponsor.research_data.teamConnection}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {sponsor.research_data.techConnection && (
+                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                      <h5 className="text-sm font-medium text-purple-300 mb-1">Tech Connection</h5>
+                      <p className="text-white text-sm">{sponsor.research_data.techConnection}</p>
+                    </div>
+                  )}
+
+                  <LeadTemperatureDisplay temperature={sponsor.lead_temperature} score={sponsor.lead_score} />
+                </div>
+              )}
+
+              {/* Show detective worksheet form if no research or updating */}
+              {(!sponsor.research_data || sponsor._showResearchForm) && (
+                <DetectiveWorksheet
+                  sponsor={sponsor}
+                  embedded={true}
+                  onClose={() => {}}
+                  onSave={(researchData) => {
+                    sponsor._showResearchForm = false;
+                    if (onSaveResearch) onSaveResearch(researchData);
+                  }}
+                />
               )}
             </div>
           )}
@@ -436,10 +526,12 @@ const taskStatuses = [
 // Task Modal
 export function TaskModal({ sponsors, teamMembers = [], onClose, onSave, task = null, currentUserId }) {
   const isEditing = !!task;
+  const [showAdvanced, setShowAdvanced] = useState(isEditing);
   const [formData, setFormData] = useState(task ? {
     id: task.id,
     sponsorId: task.sponsor_id || '',
     description: task.description || '',
+    notes: task.notes || '',
     dueDate: task.due_date || getLocalDatePlusDays(7),
     priority: task.priority || 'medium',
     status: task.status || 'todo',
@@ -449,6 +541,7 @@ export function TaskModal({ sponsors, teamMembers = [], onClose, onSave, task = 
   } : {
     sponsorId: '',
     description: '',
+    notes: '',
     dueDate: getLocalDatePlusDays(7),
     priority: 'medium',
     status: 'todo',
@@ -475,7 +568,7 @@ export function TaskModal({ sponsors, teamMembers = [], onClose, onSave, task = 
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-blue-300 mb-2">Description *</label>
+            <label className="block text-sm font-medium text-blue-300 mb-2">What needs to be done? *</label>
             <input
               type="text"
               required
@@ -486,52 +579,8 @@ export function TaskModal({ sponsors, teamMembers = [], onClose, onSave, task = 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-blue-300 mb-2">Category</label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData({...formData, category: e.target.value})}
-                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-              >
-                {taskCategories.map(cat => (
-                  <option key={cat.value} value={cat.value}>{cat.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-blue-300 mb-2">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({...formData, status: e.target.value})}
-                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-              >
-                {taskStatuses.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
           <div>
-            <label className="block text-sm font-medium text-blue-300 mb-2">Assigned To</label>
-            <select
-              value={formData.assignedTo}
-              onChange={(e) => setFormData({...formData, assignedTo: e.target.value})}
-              className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-            >
-              <option value="">Unassigned</option>
-              {teamMembers.map(member => (
-                <option key={member.id} value={member.id}>
-                  {member.display_name || member.email}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-blue-300 mb-2">Sponsor (optional)</label>
+            <label className="block text-sm font-medium text-blue-300 mb-2">For which sponsor? (optional)</label>
             <select
               value={formData.sponsorId}
               onChange={(e) => setFormData({...formData, sponsorId: e.target.value})}
@@ -544,37 +593,103 @@ export function TaskModal({ sponsors, teamMembers = [], onClose, onSave, task = 
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-blue-300 mb-2">Due Date</label>
-              <input
-                type="date"
-                value={formData.dueDate}
-                onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
-                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-blue-300 mb-2">Priority</label>
-              <select
-                value={formData.priority}
-                onChange={(e) => setFormData({...formData, priority: e.target.value})}
-                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-blue-300 mb-2">When is it due?</label>
+            <input
+              type="date"
+              value={formData.dueDate}
+              onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
+              className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+            />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-blue-300 mb-2">Notes (optional)</label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              rows={2}
+              className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+              placeholder="Any extra details or context..."
+            />
+          </div>
+
+          {/* Show more options toggle */}
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
+          >
+            {showAdvanced ? '- Hide options' : '+ Show more options'}
+          </button>
+
+          {showAdvanced && (
+            <div className="space-y-4 pt-2 border-t border-slate-700/50">
+              <div>
+                <label className="block text-sm font-medium text-blue-300 mb-2">Assigned To</label>
+                <select
+                  value={formData.assignedTo}
+                  onChange={(e) => setFormData({...formData, assignedTo: e.target.value})}
+                  className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+                >
+                  <option value="">Unassigned</option>
+                  {teamMembers.map(member => (
+                    <option key={member.id} value={member.id}>
+                      {member.display_name || member.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-blue-300 mb-2">Category</label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+                  >
+                    {taskCategories.map(cat => (
+                      <option key={cat.value} value={cat.value}>{cat.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-blue-300 mb-2">Priority</label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-blue-300 mb-2">Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({...formData, status: e.target.value})}
+                  className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500"
+                >
+                  {taskStatuses.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
               className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg hover:shadow-orange-500/50 transition-all"
             >
-              {isEditing ? 'Update Task' : 'Create Task'}
+              {isEditing ? 'Update Task' : 'Add Task'}
             </button>
             <button
               type="button"
@@ -766,22 +881,166 @@ export function LogoUpload({ currentLogo, onUpload, disabled }) {
   );
 }
 
+// Month names for annual tasks
+const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// Suggested annual tasks
+const suggestedAnnualTasks = [
+  { description: 'Site visit / facility tour', category: 'visit', month: 1, priority: 'medium' },
+  { description: 'Send thank you letter', category: 'email', month: 2, priority: 'high' },
+  { description: 'Invite to competition event', category: 'meeting', month: 3, priority: 'medium' },
+  { description: 'End-of-season update with results', category: 'email', month: 5, priority: 'high' },
+  { description: 'Summer check-in / share plans for next season', category: 'email', month: 7, priority: 'low' },
+  { description: 'Send renewal / re-sponsorship request', category: 'email', month: 9, priority: 'high' },
+  { description: 'Share team photos and season recap', category: 'email', month: 12, priority: 'medium' },
+];
+
+// Annual Task Adder component
+function AnnualTaskAdder({ onAdd }) {
+  const [showForm, setShowForm] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [newTask, setNewTask] = useState({ description: '', category: 'general', month: 1, priority: 'medium' });
+
+  if (!showForm && !showSuggestions) {
+    return (
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 px-3 py-2 text-orange-400 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/10"
+        >
+          <Plus className="w-4 h-4" />
+          Add Task
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowSuggestions(true)}
+          className="flex items-center gap-2 px-3 py-2 text-slate-400 border border-slate-700 rounded-lg text-sm hover:bg-white/5"
+        >
+          Suggestions
+        </button>
+      </div>
+    );
+  }
+
+  if (showSuggestions) {
+    return (
+      <div className="bg-slate-900/30 rounded-lg p-3 space-y-2">
+        <p className="text-xs text-slate-500 mb-2">Click to add:</p>
+        {suggestedAnnualTasks.map((task, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => { onAdd(task); setShowSuggestions(false); }}
+            className="w-full text-left px-3 py-2 text-sm text-slate-300 bg-slate-800/50 rounded hover:bg-slate-700 transition-colors flex items-center justify-between"
+          >
+            <span>{task.description}</span>
+            <span className="text-xs text-slate-500">{monthNames[task.month - 1]}</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setShowSuggestions(false)}
+          className="text-xs text-slate-500 hover:text-slate-300"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-slate-900/50 rounded-lg p-3 space-y-3">
+      <input
+        type="text"
+        value={newTask.description}
+        onChange={(e) => setNewTask({...newTask, description: e.target.value})}
+        placeholder="Task description (e.g., Send thank you letter)"
+        className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-orange-500"
+      />
+      <div className="grid grid-cols-3 gap-2">
+        <select
+          value={newTask.month}
+          onChange={(e) => setNewTask({...newTask, month: parseInt(e.target.value)})}
+          className="px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-orange-500"
+        >
+          {monthNames.map((m, i) => (
+            <option key={i} value={i + 1}>{m}</option>
+          ))}
+        </select>
+        <select
+          value={newTask.category}
+          onChange={(e) => setNewTask({...newTask, category: e.target.value})}
+          className="px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-orange-500"
+        >
+          {taskCategories.map(cat => (
+            <option key={cat.value} value={cat.value}>{cat.label}</option>
+          ))}
+        </select>
+        <select
+          value={newTask.priority}
+          onChange={(e) => setNewTask({...newTask, priority: e.target.value})}
+          className="px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-orange-500"
+        >
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (newTask.description.trim()) {
+              onAdd(newTask);
+              setNewTask({ description: '', category: 'general', month: 1, priority: 'medium' });
+              setShowForm(false);
+            }
+          }}
+          disabled={!newTask.description.trim()}
+          className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded hover:bg-orange-600 disabled:opacity-50"
+        >
+          Add
+        </button>
+        <button
+          type="button"
+          onClick={() => { setShowForm(false); setNewTask({ description: '', category: 'general', month: 1, priority: 'medium' }); }}
+          className="px-3 py-1.5 bg-slate-700 text-white text-sm rounded hover:bg-slate-600"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Team Info Form
 export function TeamInfoForm({ teamInfo, onSave, VariablesEditor }) {
   const [formData, setFormData] = useState(teamInfo);
-  const [saved, setSaved] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'saved'
+  const isFirstRender = useRef(true);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(formData);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
+  // Auto-save with debounce
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    setSaveStatus('saving');
+    const timer = setTimeout(() => {
+      onSave(formData);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(null), 1500);
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [formData]);
 
   const inputClass = "w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-orange-500";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <div className="space-y-8">
       {/* Section 1: Basic Team Info */}
       <div className="bg-slate-900/30 p-5 rounded-xl border border-slate-700/50">
         <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -838,22 +1097,69 @@ export function TeamInfoForm({ teamInfo, onSave, VariablesEditor }) {
         )}
       </div>
 
-      {/* Save Button */}
-      <div className="flex gap-3 sticky bottom-0 bg-slate-900/90 backdrop-blur-sm py-4 -mx-4 px-4 border-t border-slate-700">
-        <button
-          type="submit"
-          className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg hover:shadow-orange-500/50 transition-all"
-        >
-          {saved ? (
-            <>
-              <CheckCircle2 className="w-4 h-4" />
-              Saved!
-            </>
-          ) : (
-            'Save Changes'
-          )}
-        </button>
+      {/* Section 3: Annual Sponsor Tasks */}
+      <div className="bg-slate-900/30 p-5 rounded-xl border border-slate-700/50">
+        <h4 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+          <span className="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
+          Annual Sponsor Tasks
+        </h4>
+        <p className="text-sm text-slate-400 mb-4">
+          Define tasks that every sponsor should get each year. These will auto-generate for each sponsor.
+        </p>
+
+        <div className="space-y-3">
+          {(formData.annual_tasks || []).map((task, index) => (
+            <div key={index} className="flex items-center gap-3 bg-slate-900/50 rounded-lg p-3">
+              <div className="flex-1">
+                <div className="text-white text-sm font-medium">{task.description}</div>
+                <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+                  <span className="capitalize">{task.category || 'general'}</span>
+                  <span>·</span>
+                  <span>{monthNames[task.month - 1] || 'Any time'}</span>
+                  <span>·</span>
+                  <span className={task.priority === 'high' ? 'text-red-400' : task.priority === 'medium' ? 'text-yellow-400' : 'text-slate-400'}>
+                    {task.priority || 'medium'} priority
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = [...(formData.annual_tasks || [])];
+                  updated.splice(index, 1);
+                  setFormData({...formData, annual_tasks: updated});
+                }}
+                className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+
+          <AnnualTaskAdder onAdd={(task) => {
+            setFormData({
+              ...formData,
+              annual_tasks: [...(formData.annual_tasks || []), task]
+            });
+          }} />
+        </div>
       </div>
-    </form>
+
+      {/* Auto-save status */}
+      {saveStatus && (
+        <div className="sticky bottom-0 bg-slate-900/90 backdrop-blur-sm py-3 -mx-4 px-4 border-t border-slate-700">
+          <div className="flex items-center gap-2 text-sm">
+            {saveStatus === 'saving' ? (
+              <span className="text-slate-400">Saving...</span>
+            ) : (
+              <span className="text-green-400 flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4" />
+                Saved
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
