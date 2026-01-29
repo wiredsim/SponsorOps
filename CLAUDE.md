@@ -43,8 +43,12 @@ SponsorOps is a sponsor relationship management platform for FRC robotics teams.
 |------|---------|
 | `src/PlaybookSystem.jsx` | Email/phone templates with merge fields |
 | `src/EmailComposer.jsx` | Guided email composition |
-| `src/DetectiveWorksheet.jsx` | Interactive sponsor research |
+| `src/DetectiveWorksheet.jsx` | Interactive sponsor research with lead scoring |
 | `src/VariablesEditor.jsx` | Team variables for templates |
+| `src/PhoneScriptPlayer.jsx` | Interactive phone script player with objection handling |
+| `src/EmailQueue.jsx` | Email queue UI for managing unmatched inbound emails |
+| `src/ContactsEditor.jsx` | Multi-contact editor for sponsors |
+| `src/DonationsEditor.jsx` | Donation tracking per sponsor |
 
 ### Settings
 | File | Purpose |
@@ -57,21 +61,27 @@ SponsorOps is a sponsor relationship management platform for FRC robotics teams.
 ### Infrastructure
 | File | Purpose |
 |------|---------|
-| `workers/email-logger/src/index.js` | Cloudflare Worker for email webhooks |
-| `supabase-schema.sql` | Database schema |
-| `supabase-migration-*.sql` | Schema updates |
+| `workers/email-logger/src/index.js` | Cloudflare Worker for inbound email webhooks |
+| `workers/task-notifier/src/index.js` | Cloudflare Worker for task assignment email notifications |
+| `supabase/functions/send-invite-email/` | Supabase Edge Function for team invite emails |
+| `supabase-schema.sql` | Base database schema |
+| `supabase-migration-*.sql` | Schema updates (14 migration files) |
+| `templates/` | Email and research template guides |
 
 ## Database Schema
 
 ### Main Tables
-- `sponsors` - Company/contact info, status, lead scoring
+- `sponsors` - Company/contact info, status, lead scoring, lead temperature
+- `contacts` - Multiple contacts per sponsor (name, title, email, phone, role)
 - `interactions` - Activity log (email, call, meeting, visit)
-- `tasks` - To-dos with status, assignment, due dates
-- `team_info` - Team details, achievements, variables (JSONB)
+- `tasks` - To-dos with status, priority, category, assignment, due dates, notes
+- `donations` - Donation records per sponsor (amount, date, type)
+- `team_info` - Team details, achievements, variables (JSONB), annual task templates
 - `teams` - Team accounts
 - `team_members` - User-team relationships with roles
 - `team_invites` - Pending invitations
 - `playbooks` - Custom email/phone templates
+- `email_queue` - Unmatched inbound emails pending manual assignment
 - `user_profiles` - Display names
 - `audit_log` - Change history
 
