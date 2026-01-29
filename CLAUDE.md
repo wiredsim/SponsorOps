@@ -156,6 +156,25 @@ npx wrangler secret put SUPABASE_SERVICE_KEY
 4. Test on mobile viewport (responsive)
 5. Push to master for production deploy
 
+## IMPORTANT: Deployment Workflow
+
+**Every code change MUST be pushed to git.** The user does not run locally — the app only runs on Cloudflare Pages, which deploys from the `master` branch. If you don't push, your changes don't exist.
+
+After completing any code changes:
+1. `git add` the changed files
+2. `git commit` with a descriptive message
+3. `git push` to trigger Cloudflare Pages deployment
+
+Do NOT wait for the user to ask you to push. Do NOT tell the user to push. Just push it yourself as part of finishing the work.
+
+Similarly, if you create or modify a Cloudflare Worker, deploy it with `npx wrangler deploy`.
+
+### Workers
+| Worker | Location | URL |
+|--------|----------|-----|
+| email-logger | `workers/email-logger/` | `sponsorops-email-logger.wiredsim.workers.dev` |
+| task-notifier | `workers/task-notifier/` | `sponsorops-task-notifier.wiredsim.workers.dev` |
+
 ## Gotchas
 
 - **Dates:** Use local date helpers (`getLocalDateString`, `formatLocalDate`) to avoid timezone issues
