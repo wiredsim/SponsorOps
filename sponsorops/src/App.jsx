@@ -1147,6 +1147,7 @@ function AppContent() {
           playbook={activePhoneScript}
           sponsor={phoneScriptSponsor}
           teamInfo={teamInfo}
+          currentTeam={currentTeam}
           onClose={() => {
             setShowPhoneScriptPlayer(false);
             setActivePhoneScript(null);

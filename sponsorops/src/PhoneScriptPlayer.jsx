@@ -158,7 +158,7 @@ End with: "Thanks again for your time. Have a great day!"`
   }
 ];
 
-export function PhoneScriptPlayer({ playbook, sponsor, teamInfo, onClose, onLogInteraction }) {
+export function PhoneScriptPlayer({ playbook, sponsor, teamInfo, currentTeam, onClose, onLogInteraction }) {
   const [step, setStep] = useState('intro'); // intro, script, response, objection, notes
   const [selectedResponse, setSelectedResponse] = useState(null);
   const [selectedObjection, setSelectedObjection] = useState(null);
