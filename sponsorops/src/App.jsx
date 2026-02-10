@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component } from 'react';
 import {
-  Building2, Users, Calendar, CheckCircle2, Clock,
-  TrendingUp, Mail, Phone, Plus, Search, Filter,
+  Building2, Users, CheckCircle2, Clock,
+  TrendingUp, Mail, Plus, Search,
   X, Edit2, Trash2, ExternalLink, BarChart3,
-  FileText, Target, Briefcase, Award, ChevronRight,
-  AlertCircle, Star, MessageSquare, Bell, LogOut,
-  Settings, ChevronDown, User, PlayCircle, PauseCircle,
-  Circle, AlertOctagon, BookOpen, Inbox,
+  Target, Award, ChevronRight,
+  AlertCircle, Star, LogOut,
+  Settings, ChevronDown, User, PlayCircle,
+  Circle, AlertOctagon, BookOpen, Inbox, UserPlus,
   Flame, ThermometerSun, Snowflake
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
@@ -19,10 +19,39 @@ import { logAudit } from './auditLog';
 import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm, LeadTemperatureDisplay, taskCategories, taskStatuses, isDateOverdue, formatLocalDate } from './components';
 import EmailComposer from './EmailComposer';
 import VariablesEditor from './VariablesEditor';
-import { PlaybookManager } from './PlaybookSystem';
+import { PlaybookManager, defaultPlaybooks } from './PlaybookSystem';
 import AccountSettings from './AccountSettings';
 import EmailQueue from './EmailQueue';
 import PhoneScriptPlayer from './PhoneScriptPlayer';
+
+// Error boundary to prevent blank screens when a view crashes
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 text-center">
+          <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
+          <h3 className="text-lg font-bold text-white mb-2">Something went wrong</h3>
+          <p className="text-slate-400 text-sm mb-4">{this.state.error?.message || 'An unexpected error occurred'}</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Task notification worker URL
 const TASK_NOTIFIER_URL = 'https://sponsorops-task-notifier.wiredsim.workers.dev';
@@ -775,6 +804,7 @@ function AppContent() {
                 {[
                   { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
                   { id: 'sponsors', icon: Building2, label: 'Sponsors' },
+                  { id: 'contacts', icon: UserPlus, label: 'Contacts' },
                   { id: 'tasks', icon: CheckCircle2, label: 'Tasks' },
                   { id: 'playbook', icon: BookOpen, label: 'Playbook' },
                   { id: 'team-specs', icon: Award, label: 'Team Specs' }
@@ -926,26 +956,42 @@ function AppContent() {
           />
         )}
 
+        {/* Contacts View */}
+        {view === 'contacts' && (
+          <ErrorBoundary>
+            <ContactsView
+              sponsors={sponsors}
+              teamId={currentTeam?.id}
+              onSelectSponsor={(sponsor) => {
+                setSelectedSponsor(sponsor);
+                setView('sponsors');
+              }}
+            />
+          </ErrorBoundary>
+        )}
+
         {/* Tasks View */}
         {view === 'tasks' && (
-          <TasksView
-            tasks={tasks}
-            sponsors={sponsors}
-            teamMembers={teamMembers}
-            currentUserId={user.id}
-            taskFilter={taskFilter}
-            setTaskFilter={setTaskFilter}
-            onAddTask={() => {
-              setEditingTask(null);
-              setShowAddTask(true);
-            }}
-            onEditTask={(task) => {
-              setEditingTask(task);
-              setShowAddTask(true);
-            }}
-            onUpdateTask={saveTask}
-            onDeleteTask={deleteTask}
-          />
+          <ErrorBoundary>
+            <TasksView
+              tasks={tasks}
+              sponsors={sponsors}
+              teamMembers={teamMembers}
+              currentUserId={user.id}
+              taskFilter={taskFilter}
+              setTaskFilter={setTaskFilter}
+              onAddTask={() => {
+                setEditingTask(null);
+                setShowAddTask(true);
+              }}
+              onEditTask={(task) => {
+                setEditingTask(task);
+                setShowAddTask(true);
+              }}
+              onUpdateTask={saveTask}
+              onDeleteTask={deleteTask}
+            />
+          </ErrorBoundary>
         )}
 
         {/* Playbook View */}
@@ -1096,6 +1142,7 @@ function AppContent() {
           sponsor={selectedSponsor}
           teamInfo={teamInfo}
           currentTeam={currentTeam}
+          allPlaybooks={[...defaultPlaybooks.filter(p => p.type === 'email'), ...customPlaybooks.filter(p => p.type === 'email')]}
           onClose={() => setShowEmailComposer(false)}
           onLogInteraction={(interactionData) => {
             saveInteraction({
@@ -1148,6 +1195,7 @@ function AppContent() {
           playbook={activePhoneScript}
           sponsor={phoneScriptSponsor}
           teamInfo={teamInfo}
+          currentTeam={currentTeam}
           onClose={() => {
             setShowPhoneScriptPlayer(false);
             setActivePhoneScript(null);
@@ -1855,6 +1903,226 @@ function TasksView({ tasks, sponsors, teamMembers, currentUserId, taskFilter, se
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Contacts View - shows all contacts across all sponsors plus standalone contacts
+function ContactsView({ sponsors, teamId, onSelectSponsor }) {
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [formData, setFormData] = useState({ name: '', title: '', email: '', phone: '', role: '', contact_type: 'sponsor', organization: '', notes: '' });
+
+  const contactTypes = [
+    { value: 'sponsor', label: 'Sponsor Contact', color: 'text-orange-400' },
+    { value: 'mentor', label: 'Mentor', color: 'text-blue-400' },
+    { value: 'vendor', label: 'Vendor', color: 'text-purple-400' },
+    { value: 'venue', label: 'Venue Contact', color: 'text-green-400' },
+    { value: 'volunteer', label: 'Volunteer', color: 'text-yellow-400' },
+    { value: 'other', label: 'Other', color: 'text-slate-400' },
+  ];
+
+  useEffect(() => {
+    if (teamId) loadAllContacts();
+  }, [teamId]);
+
+  const loadAllContacts = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('team_id', teamId)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setContacts(data || []);
+    } catch (err) {
+      console.error('Error loading contacts:', err);
+    }
+    setLoading(false);
+  };
+
+  const handleSave = async () => {
+    if (!formData.name.trim()) return;
+    try {
+      const { error } = await supabase.from('contacts').insert([{
+        team_id: teamId,
+        name: formData.name,
+        title: formData.title,
+        email: formData.email,
+        phone: formData.phone,
+        role: formData.role,
+        contact_type: formData.contact_type,
+        organization: formData.organization,
+        notes: formData.notes,
+      }]);
+      if (error) throw error;
+      setFormData({ name: '', title: '', email: '', phone: '', role: '', contact_type: 'sponsor', organization: '', notes: '' });
+      setShowAddForm(false);
+      await loadAllContacts();
+    } catch (err) {
+      console.error('Error saving contact:', err);
+      alert('Error saving contact. Please try again.');
+    }
+  };
+
+  const filteredContacts = contacts.filter(c => {
+    const matchesSearch = c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.organization?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = typeFilter === 'all' || (c.contact_type || 'sponsor') === typeFilter;
+    return matchesSearch && matchesType;
+  });
+
+  const getSponsorName = (sponsorId) => {
+    if (!sponsorId) return null;
+    return sponsors.find(s => s.id === sponsorId)?.name;
+  };
+
+  if (loading) {
+    return <div className="text-white text-center py-12">Loading contacts...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <h2 className="text-3xl font-bold text-white">All Contacts</h2>
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-600 text-white px-4 py-2 rounded-lg hover:shadow-lg hover:shadow-orange-500/50 transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          Add Contact
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search contacts..."
+            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
+          />
+        </div>
+        <div className="flex items-center bg-slate-800/50 rounded-lg p-1 flex-wrap">
+          <button
+            onClick={() => setTypeFilter('all')}
+            className={`px-3 py-1.5 rounded-md text-sm transition-all ${typeFilter === 'all' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}
+          >
+            All
+          </button>
+          {contactTypes.map(ct => (
+            <button
+              key={ct.value}
+              onClick={() => setTypeFilter(ct.value)}
+              className={`px-3 py-1.5 rounded-md text-sm transition-all ${typeFilter === ct.value ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}
+            >
+              {ct.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Add Contact Form */}
+      {showAddForm && (
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50">
+          <h3 className="text-lg font-bold text-white mb-4">New Contact</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Name *" className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm" />
+            <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Title" className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm" />
+            <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Email" className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm" />
+            <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="Phone" className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm" />
+            <input type="text" value={formData.organization} onChange={e => setFormData({...formData, organization: e.target.value})} placeholder="Organization" className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm" />
+            <select value={formData.contact_type} onChange={e => setFormData({...formData, contact_type: e.target.value})} className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm">
+              {contactTypes.map(ct => <option key={ct.value} value={ct.value}>{ct.label}</option>)}
+            </select>
+          </div>
+          <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Notes" rows={2} className="w-full mt-4 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm" />
+          <div className="flex gap-2 mt-4">
+            <button onClick={handleSave} disabled={!formData.name.trim()} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">Save Contact</button>
+            <button onClick={() => setShowAddForm(false)} className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Contacts Table */}
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-900/50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Organization</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Phone</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Role</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/50">
+              {filteredContacts.map(contact => {
+                const sponsorName = getSponsorName(contact.sponsor_id);
+                const ct = contactTypes.find(t => t.value === (contact.contact_type || 'sponsor'));
+                return (
+                  <tr key={contact.id} className="hover:bg-slate-700/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="text-white font-medium">{contact.name}</div>
+                      {contact.title && <div className="text-xs text-slate-400">{contact.title}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-sm ${ct?.color || 'text-slate-400'}`}>{ct?.label || 'Sponsor Contact'}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {sponsorName ? (
+                        <button
+                          onClick={() => {
+                            const sponsor = sponsors.find(s => s.id === contact.sponsor_id);
+                            if (sponsor) onSelectSponsor(sponsor);
+                          }}
+                          className="text-sm text-orange-400 hover:text-orange-300"
+                        >
+                          {sponsorName}
+                        </button>
+                      ) : (
+                        <span className="text-sm text-slate-400">{contact.organization || '\u2014'}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {contact.email ? (
+                        <a href={`mailto:${contact.email}`} className="text-sm text-blue-400 hover:text-blue-300">{contact.email}</a>
+                      ) : <span className="text-sm text-slate-500">{'\u2014'}</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {contact.phone ? (
+                        <a href={`tel:${contact.phone}`} className="text-sm text-blue-400 hover:text-blue-300">{contact.phone}</a>
+                      ) : <span className="text-sm text-slate-500">{'\u2014'}</span>}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-400">{contact.role || '\u2014'}</td>
+                  </tr>
+                );
+              })}
+              {filteredContacts.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="px-4 py-8 text-center text-slate-500">
+                    {contacts.length === 0 ? 'No contacts yet. Add your first contact or add contacts through sponsor records.' : 'No contacts match your search.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p className="text-xs text-slate-500">
+        Showing {filteredContacts.length} of {contacts.length} contacts. Sponsor contacts are also managed within each sponsor record.
+      </p>
     </div>
   );
 }
