@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Send, Lightbulb, ChevronDown, ChevronUp, Mail, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Copy, Check, Send, Lightbulb, ChevronDown, ChevronUp, Mail, AlertCircle, ExternalLink } from 'lucide-react';
 
-// Email templates with merge fields and coaching tips
-const emailTemplates = [
+// Built-in email templates (kept as fallback if no playbooks passed)
+const builtInTemplates = [
   {
     id: 'new-sponsor',
     name: 'New Sponsor - First Contact',
@@ -143,22 +143,53 @@ Looking forward to it!
   }
 ];
 
-export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogInteraction }) {
+export function EmailComposer({ sponsor, teamInfo, currentTeam, allPlaybooks, onClose, onLogInteraction }) {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [customFields, setCustomFields] = useState({});
   const [copied, setCopied] = useState(false);
   const [showTips, setShowTips] = useState(true);
-  const [previewMode, setPreviewMode] = useState(false);
+  const [templateSource, setTemplateSource] = useState('all'); // 'all', 'built-in', 'playbook'
+
+  // Normalize playbook templates to match the built-in template shape
+  const normalizePlaybook = (playbook) => ({
+    id: playbook.id,
+    name: playbook.title,
+    description: playbook.isDefault ? 'Default playbook template' : 'Custom playbook template',
+    subject: playbook.subject || '',
+    body: playbook.content || '',
+    tips: playbook.tips || [],
+    goodExamples: [],
+    badExamples: [],
+    forTypes: [], // playbooks don't filter by type
+    isPlaybook: true,
+    isDefault: playbook.isDefault,
+  });
+
+  // Merge built-in templates with playbook templates, avoiding duplicates
+  const allTemplates = (() => {
+    const playbooks = (allPlaybooks || []).map(normalizePlaybook);
+    const playBookIds = new Set(playbooks.map(p => p.id));
+    // Only include built-in templates that don't overlap with playbooks
+    const uniqueBuiltIns = builtInTemplates.filter(t => !playBookIds.has(t.id));
+    return [...playbooks, ...uniqueBuiltIns];
+  })();
 
   // Auto-select template based on sponsor type
   useEffect(() => {
     if (sponsor?.type) {
-      const matchingTemplate = emailTemplates.find(t => t.forTypes.includes(sponsor.type));
-      if (matchingTemplate) {
-        setSelectedTemplate(matchingTemplate);
-      }
+      // First try playbook templates, then built-in
+      const matchingBuiltIn = builtInTemplates.find(t => t.forTypes?.includes(sponsor.type));
+      const matchingPlaybook = allTemplates.find(t => t.isPlaybook);
+      setSelectedTemplate(matchingBuiltIn || matchingPlaybook || allTemplates[0] || null);
     }
   }, [sponsor]);
+
+  // Filter templates based on source selector
+  const visibleTemplates = allTemplates.filter(t => {
+    if (templateSource === 'built-in') return !t.isPlaybook;
+    if (templateSource === 'playbook') return t.isPlaybook;
+    return true;
+  });
 
   // Format an array of variable items as bullet points
   const formatVariableList = (items) => {
@@ -168,10 +199,8 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
 
   // Get merge field value from various sources
   const getMergeValue = (field) => {
-    // Custom field override
     if (customFields[field]) return customFields[field];
 
-    // Sponsor data
     const sponsorMap = {
       'company_name': sponsor?.name,
       'contact_name': sponsor?.contact_name || sponsor?.contactName || '[Contact Name]',
@@ -183,7 +212,6 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
     };
     if (sponsorMap[field]) return sponsorMap[field];
 
-    // Variables from VariablesEditor (stored in teamInfo.variables)
     const variables = teamInfo?.variables || {};
     const variablesMap = {
       'past_achievements': formatVariableList(variables.past_achievements),
@@ -192,12 +220,10 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
     };
     if (variablesMap[field]) return variablesMap[field];
 
-    // Custom variables from VariablesEditor
     const customVars = variables.custom || [];
     const customVar = customVars.find(v => v.key === field);
     if (customVar) return customVar.value;
 
-    // Team info (currentTeam for name/number, teamInfo for other fields)
     const teamMap = {
       'team_name': currentTeam?.name || teamInfo?.team_name || 'Our Team',
       'team_number': currentTeam?.team_number || teamInfo?.team_number,
@@ -209,21 +235,18 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
       'goals': teamInfo?.goals,
       'last_season_achievements': teamInfo?.last_season_achievements,
       'last_season_story': teamInfo?.last_season_story,
-      // Legacy achievement fields (for backwards compatibility)
       'achievement_1': teamInfo?.achievement_1 || '[Specific achievement]',
       'achievement_2': teamInfo?.achievement_2 || '[Student impact]',
       'achievement_3': teamInfo?.achievement_3 || '[Cool accomplishment]',
     };
     if (teamMap[field]) return teamMap[field];
 
-    // User/sender info (would come from auth context in real implementation)
     const senderMap = {
       'sender_name': '[Your Name]',
       'sender_email': '[Your Email]',
     };
     if (senderMap[field]) return senderMap[field];
 
-    // Placeholders for manual fields
     const placeholders = {
       'personalization_sentence': '[WHY you\'re reaching out to THIS company - see tips below!]',
       'meeting_details': '[Date, time, location]',
@@ -233,13 +256,11 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
     return `[${field}]`;
   };
 
-  // Replace all merge fields in text
   const replaceMergeFields = (text) => {
     if (!text) return '';
-    return text.replace(/\{\{(\w+)\}\}/g, (match, field) => getMergeValue(field));
+    return text.replace(/\{\{(\w+)\}\}/g, (_match, field) => getMergeValue(field));
   };
 
-  // Find unfilled merge fields
   const getUnfilledFields = (text) => {
     const filled = replaceMergeFields(text);
     const matches = filled.match(/\[[^\]]+\]/g) || [];
@@ -263,6 +284,25 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Open in Gmail compose window
+  const handleOpenInGmail = () => {
+    if (!selectedTemplate) return;
+    const subject = encodeURIComponent(replaceMergeFields(selectedTemplate.subject));
+    const body = encodeURIComponent(replaceMergeFields(selectedTemplate.body));
+    const to = encodeURIComponent(sponsor?.email || '');
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${to}&su=${subject}&body=${body}`;
+    window.open(gmailUrl, '_blank');
+  };
+
+  // Open in default mail client via mailto:
+  const handleOpenMailto = () => {
+    if (!selectedTemplate) return;
+    const subject = encodeURIComponent(replaceMergeFields(selectedTemplate.subject));
+    const body = encodeURIComponent(replaceMergeFields(selectedTemplate.body));
+    const to = encodeURIComponent(sponsor?.email || '');
+    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+  };
+
   const handleMarkAsSent = () => {
     if (!selectedTemplate) return;
     onLogInteraction({
@@ -273,10 +313,8 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
     onClose();
   };
 
-  // Filter templates for this sponsor type
-  const relevantTemplates = emailTemplates.filter(t =>
-    !sponsor?.type || t.forTypes.includes(sponsor.type)
-  );
+  const templateSubject = selectedTemplate?.subject || '';
+  const templateBody = selectedTemplate?.body || '';
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -290,7 +328,7 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
             </h3>
             <p className="text-slate-400 text-sm mt-1">
               to {sponsor?.name || 'Sponsor'}
-              {sponsor?.contactName && ` (${sponsor.contactName})`}
+              {sponsor?.contact_name && ` (${sponsor.contact_name})`}
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white">
@@ -299,11 +337,37 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
+          {/* Template Source Filter */}
+          {allPlaybooks && allPlaybooks.length > 0 && (
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xs text-slate-500">Show:</span>
+              {[
+                { value: 'all', label: 'All Templates' },
+                { value: 'playbook', label: 'Playbook Templates' },
+                { value: 'built-in', label: 'Built-in Templates' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setTemplateSource(opt.value)}
+                  className={`px-3 py-1 rounded-md text-xs transition-all ${
+                    templateSource === opt.value
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Template Selector */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-blue-300 mb-2">Select Template</label>
-            <div className="grid grid-cols-2 gap-3">
-              {relevantTemplates.map(template => (
+            <label className="block text-sm font-medium text-blue-300 mb-2">
+              Select Template ({visibleTemplates.length} available)
+            </label>
+            <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto">
+              {visibleTemplates.map(template => (
                 <button
                   key={template.id}
                   onClick={() => setSelectedTemplate(template)}
@@ -313,8 +377,13 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
                       : 'bg-slate-900/50 border-slate-700 text-slate-300 hover:border-slate-500'
                   }`}
                 >
-                  <div className="font-medium">{template.name}</div>
-                  <div className="text-sm text-slate-400 mt-1">{template.description}</div>
+                  <div className="font-medium text-sm">{template.name}</div>
+                  <div className="text-xs text-slate-400 mt-1">{template.description}</div>
+                  {template.isPlaybook && (
+                    <span className={`inline-block mt-1 text-xs px-1.5 py-0.5 rounded ${template.isDefault ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                      {template.isDefault ? 'Default' : 'Custom'}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -323,7 +392,7 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
           {selectedTemplate && (
             <>
               {/* Coaching Tips */}
-              {selectedTemplate.tips.length > 0 && (
+              {selectedTemplate.tips && selectedTemplate.tips.length > 0 && (
                 <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-lg overflow-hidden">
                   <button
                     onClick={() => setShowTips(!showTips)}
@@ -347,7 +416,7 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
                         ))}
                       </ul>
 
-                      {selectedTemplate.goodExamples.length > 0 && (
+                      {selectedTemplate.goodExamples && selectedTemplate.goodExamples.length > 0 && (
                         <div className="mt-4">
                           <div className="text-green-400 text-sm font-medium mb-2">Good examples:</div>
                           {selectedTemplate.goodExamples.map((ex, i) => (
@@ -358,7 +427,7 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
                         </div>
                       )}
 
-                      {selectedTemplate.badExamples.length > 0 && (
+                      {selectedTemplate.badExamples && selectedTemplate.badExamples.length > 0 && (
                         <div className="mt-4">
                           <div className="text-red-400 text-sm font-medium mb-2">Avoid:</div>
                           {selectedTemplate.badExamples.map((ex, i) => (
@@ -378,7 +447,7 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-blue-300">Subject</label>
                   <button
-                    onClick={() => handleCopy(selectedTemplate.subject)}
+                    onClick={() => handleCopy(templateSubject)}
                     className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
                   >
                     <Copy className="w-3 h-3" />
@@ -386,7 +455,7 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
                   </button>
                 </div>
                 <div className="p-3 bg-slate-900 border border-slate-700 rounded-lg text-white">
-                  {replaceMergeFields(selectedTemplate.subject)}
+                  {replaceMergeFields(templateSubject)}
                 </div>
               </div>
 
@@ -395,7 +464,7 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-blue-300">Email Body</label>
                   <button
-                    onClick={() => handleCopy(selectedTemplate.body)}
+                    onClick={() => handleCopy(templateBody)}
                     className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
                   >
                     <Copy className="w-3 h-3" />
@@ -403,18 +472,18 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
                   </button>
                 </div>
                 <div className="p-4 bg-slate-900 border border-slate-700 rounded-lg text-white whitespace-pre-wrap font-mono text-sm leading-relaxed">
-                  {replaceMergeFields(selectedTemplate.body)}
+                  {replaceMergeFields(templateBody)}
                 </div>
               </div>
 
               {/* Unfilled Fields Warning */}
-              {getUnfilledFields(selectedTemplate.subject + selectedTemplate.body).length > 0 && (
+              {getUnfilledFields(templateSubject + templateBody).length > 0 && (
                 <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <div className="text-orange-300 font-medium text-sm">Fields to fill in:</div>
                     <div className="text-orange-200 text-sm mt-1">
-                      {getUnfilledFields(selectedTemplate.subject + selectedTemplate.body).join(', ')}
+                      {getUnfilledFields(templateSubject + templateBody).join(', ')}
                     </div>
                   </div>
                 </div>
@@ -444,14 +513,34 @@ export function EmailComposer({ sponsor, teamInfo, currentTeam, onClose, onLogIn
             Cancel
           </button>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <button
+              onClick={handleOpenInGmail}
+              disabled={!selectedTemplate}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50"
+              title="Opens Gmail in a new tab with the email pre-filled"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open in Gmail
+            </button>
+
+            <button
+              onClick={handleOpenMailto}
+              disabled={!selectedTemplate}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 text-sm"
+              title="Opens your default email app"
+            >
+              <Mail className="w-4 h-4" />
+              Mail App
+            </button>
+
             <button
               onClick={handleCopyAll}
               disabled={!selectedTemplate}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 text-sm"
             >
               {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-              {copied ? 'Copied!' : 'Copy Email'}
+              {copied ? 'Copied!' : 'Copy'}
             </button>
 
             <button
