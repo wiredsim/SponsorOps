@@ -6,7 +6,8 @@ import {
   FileText, Target, Briefcase, Award, ChevronRight,
   AlertCircle, Star, MessageSquare, Bell, LogOut,
   Settings, ChevronDown, User, PlayCircle, PauseCircle,
-  Circle, AlertOctagon, BookOpen, Inbox
+  Circle, AlertOctagon, BookOpen, Inbox,
+  Flame, ThermometerSun, Snowflake
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -15,7 +16,7 @@ import LoginPage from './LoginPage';
 import TeamSetup from './TeamSetup';
 import TeamSettings from './TeamSettings';
 import { logAudit } from './auditLog';
-import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm, taskCategories, taskStatuses, isDateOverdue, formatLocalDate } from './components';
+import { SponsorModal, SponsorDetailModal, TaskModal, InteractionModal, TeamInfoForm, LeadTemperatureDisplay, taskCategories, taskStatuses, isDateOverdue, formatLocalDate } from './components';
 import EmailComposer from './EmailComposer';
 import VariablesEditor from './VariablesEditor';
 import { PlaybookManager } from './PlaybookSystem';
@@ -1457,6 +1458,68 @@ function DashboardView({ stats, sponsors, tasks, teamMembers, currentUserId, onA
 
 // Sponsors View Component
 function SponsorsView({ sponsors, searchQuery, setSearchQuery, statusFilter, setStatusFilter, statusOptions, onAddSponsor, onSelectSponsor }) {
+  // Group sponsors by status (in pipeline order), sort alphabetically within each group
+  const groupedSponsors = statusFilter === 'all'
+    ? statusOptions
+        .map(opt => ({
+          ...opt,
+          sponsors: sponsors
+            .filter(s => s.status === opt.value)
+            .sort((a, b) => a.name.localeCompare(b.name))
+        }))
+        .filter(group => group.sponsors.length > 0)
+    : null;
+
+  // When filtering by a single status, just sort alphabetically
+  const sortedSponsors = statusFilter !== 'all'
+    ? [...sponsors].sort((a, b) => a.name.localeCompare(b.name))
+    : null;
+
+  const renderSponsorCard = (sponsor) => (
+    <div
+      key={sponsor.id}
+      onClick={() => onSelectSponsor(sponsor)}
+      className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50 hover:border-orange-500/50 cursor-pointer transition-all group"
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-3 rounded-lg group-hover:scale-110 transition-transform">
+            <Building2 className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-white text-lg">{sponsor.name}</h3>
+            <div className="text-sm text-blue-300">{sponsor.industry}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2 mb-4">
+        <div className="flex items-center gap-2 text-sm text-slate-300">
+          <Users className="w-4 h-4 text-slate-400" />
+          {sponsor.contact_name} - {sponsor.contact_title}
+        </div>
+        <div className="flex items-center gap-2 text-sm text-slate-300">
+          <Mail className="w-4 h-4 text-slate-400" />
+          {sponsor.email}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className={`px-3 py-1 rounded-full text-xs text-white ${
+            statusOptions.find(s => s.value === sponsor.status)?.color || 'bg-gray-500'
+          }`}>
+            {statusOptions.find(s => s.value === sponsor.status)?.label || sponsor.status}
+          </div>
+          {sponsor.lead_temperature && (
+            <LeadTemperatureDisplay temperature={sponsor.lead_temperature} score={sponsor.lead_score} />
+          )}
+        </div>
+        <ChevronRight className="w-5 h-5 text-orange-500 group-hover:translate-x-1 transition-transform" />
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1494,48 +1557,26 @@ function SponsorsView({ sponsors, searchQuery, setSearchQuery, statusFilter, set
         </select>
       </div>
 
-      {/* Sponsors Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {sponsors.map(sponsor => (
-          <div
-            key={sponsor.id}
-            onClick={() => onSelectSponsor(sponsor)}
-            className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50 hover:border-orange-500/50 cursor-pointer transition-all group"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-3 rounded-lg group-hover:scale-110 transition-transform">
-                  <Building2 className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-lg">{sponsor.name}</h3>
-                  <div className="text-sm text-blue-300">{sponsor.industry}</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm text-slate-300">
-                <Users className="w-4 h-4 text-slate-400" />
-                {sponsor.contact_name} - {sponsor.contact_title}
-              </div>
-              <div className="flex items-center gap-2 text-sm text-slate-300">
-                <Mail className="w-4 h-4 text-slate-400" />
-                {sponsor.email}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className={`px-3 py-1 rounded-full text-xs text-white ${
-                statusOptions.find(s => s.value === sponsor.status)?.color || 'bg-gray-500'
-              }`}>
-                {statusOptions.find(s => s.value === sponsor.status)?.label || sponsor.status}
-              </div>
-              <ChevronRight className="w-5 h-5 text-orange-500 group-hover:translate-x-1 transition-transform" />
-            </div>
+      {/* Sponsors grouped by status (when viewing all) */}
+      {groupedSponsors && groupedSponsors.map(group => (
+        <div key={group.value} className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full ${group.color}`} />
+            <h3 className="text-lg font-semibold text-white">{group.label}</h3>
+            <span className="text-sm text-slate-400">({group.sponsors.length})</span>
           </div>
-        ))}
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {group.sponsors.map(renderSponsorCard)}
+          </div>
+        </div>
+      ))}
+
+      {/* Flat grid when filtered to a single status */}
+      {sortedSponsors && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sortedSponsors.map(renderSponsorCard)}
+        </div>
+      )}
 
       {sponsors.length === 0 && (
         <div className="text-center py-20">

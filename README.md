@@ -7,22 +7,28 @@ A comprehensive sponsor relationship management platform for FRC (FIRST Robotics
 ## Features
 
 ### Core CRM
-- **Dashboard** - Overview of sponsor pipeline, tasks, and team activity
+- **Dashboard** - Overview of sponsor pipeline, tasks, team activity, and email queue alerts
 - **Sponsor Management** - Full CRM for tracking companies, contacts, and relationships
-- **Task System** - Kanban-style task board with assignments and due dates
+- **Contact Management** - Multiple contacts per sponsor with roles, titles, and contact info
+- **Task System** - Kanban-style task board with assignments, priorities, categories, and due dates
+- **Task Notifications** - Email notifications when tasks are assigned to team members
 - **Interaction History** - Log emails, calls, meetings, and visits
+- **Donation Tracking** - Track donation history, amounts, and dates per sponsor
 - **Search & Filter** - Find sponsors by status, name, or contact
 
 ### Outreach Tools
 - **Playbook System** - Email templates, phone scripts, meeting guides, and tips
 - **Email Composer** - Guided email composition with coaching tips
+- **Phone Script Player** - Interactive phone script player with objection handling
 - **Detective Worksheet** - Interactive sponsor research tool with lead scoring
 - **Variables System** - Merge fields for personalized templates (`{{team_name}}`, `{{contact_name}}`, etc.)
 
 ### Team Features
 - **Multi-team Support** - Invite-only teams with admin/member roles
-- **Team Specs** - Centralized team info, achievements, and goals
+- **Team Specs** - Centralized team info, achievements, goals, and annual task templates
+- **Annual Tasks** - Auto-generate recurring tasks from templates
 - **Activity Tracking** - Auto-log emails by BCC'ing `log@sponsorops.net`
+- **Email Queue** - Review and assign unmatched inbound emails to sponsors
 
 ### Authentication
 - Magic link sign-in
@@ -64,62 +70,54 @@ Auto-log interaction in Supabase
 ```
 sponsorops/
 ├── src/
-│   ├── App.jsx              # Main app component, routing, state
-│   ├── AuthContext.jsx      # Authentication provider
-│   ├── TeamContext.jsx      # Team/membership provider
-│   ├── components.jsx       # Shared UI components
-│   ├── PlaybookSystem.jsx   # Email/phone templates
-│   ├── EmailComposer.jsx    # Guided email composition
-│   ├── DetectiveWorksheet.jsx # Sponsor research tool
-│   ├── VariablesEditor.jsx  # Merge field management
-│   ├── AccountSettings.jsx  # User password/profile settings
-│   ├── TeamSettings.jsx     # Team admin settings
-│   ├── TeamSetup.jsx        # New user team join flow
-│   ├── LoginPage.jsx        # Authentication UI
-│   ├── supabaseClient.js    # Supabase client config
-│   └── auditLog.js          # Audit logging utility
+│   ├── App.jsx                # Main app component, routing, state, all views
+│   ├── AuthContext.jsx        # Authentication provider
+│   ├── TeamContext.jsx        # Team/membership provider
+│   ├── components.jsx         # Shared UI components (modals, forms, utilities)
+│   ├── PlaybookSystem.jsx     # Email/phone templates with merge fields
+│   ├── EmailComposer.jsx      # Guided email composition
+│   ├── PhoneScriptPlayer.jsx  # Interactive phone script player
+│   ├── DetectiveWorksheet.jsx # Sponsor research tool with lead scoring
+│   ├── VariablesEditor.jsx    # Merge field management
+│   ├── EmailQueue.jsx         # Unmatched email queue management
+│   ├── ContactsEditor.jsx     # Multi-contact editor for sponsors
+│   ├── DonationsEditor.jsx    # Donation tracking per sponsor
+│   ├── AccountSettings.jsx    # User password/profile settings
+│   ├── TeamSettings.jsx       # Team admin settings
+│   ├── TeamSetup.jsx          # New user team join flow
+│   ├── LoginPage.jsx          # Authentication UI
+│   ├── supabaseClient.js      # Supabase client config
+│   └── auditLog.js            # Audit logging utility
 ├── workers/
-│   └── email-logger/        # Cloudflare Worker for inbound email
+│   ├── email-logger/          # Cloudflare Worker for inbound email
+│   │   ├── src/index.js
+│   │   ├── wrangler.toml
+│   │   └── package.json
+│   └── task-notifier/         # Cloudflare Worker for task assignment emails
 │       ├── src/index.js
 │       ├── wrangler.toml
 │       └── package.json
-├── supabase-schema.sql      # Database schema
-├── supabase-migration-*.sql # Schema migrations
-└── .env.local               # Environment variables (not committed)
+├── supabase/
+│   └── functions/
+│       └── send-invite-email/ # Supabase Edge Function for invite emails
+├── templates/
+│   ├── Email_Templates.md     # Email template reference guide
+│   └── Detective_Worksheet.md # Research worksheet guide
+├── supabase-schema.sql        # Base database schema
+├── supabase-migration-*.sql   # Schema migrations (14 files)
+└── .env.local                 # Environment variables (not committed)
 ```
 
-## Development Setup
+## Setup
 
 ### Prerequisites
-- Node.js 18+
-- npm
 - Supabase account
-- Cloudflare account (for deployment)
+- Cloudflare account (for hosting)
 - Resend account (for email)
 
-### Local Development
-
-1. **Clone and install:**
-   ```bash
-   git clone https://github.com/wiredsim/SponsorOps.git
-   cd SponsorOps/sponsorops
-   npm install
-   ```
-
-2. **Configure environment:**
-   ```bash
-   cp .env.example .env.local
-   # Edit .env.local with your Supabase credentials
-   ```
-
-3. **Run development server:**
-   ```bash
-   npm run dev
-   ```
-
-4. Open [http://localhost:5173](http://localhost:5173)
-
 ### Environment Variables
+
+Set these in Cloudflare Pages project settings:
 
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -137,14 +135,21 @@ The app auto-deploys from the `master` branch via Cloudflare Pages.
 - Build command: `npm run build`
 - Build output: `dist`
 
-### Email Logger Worker
+### Cloudflare Workers
 
+**Email Logger Worker:**
 ```bash
 cd sponsorops/workers/email-logger
 npx wrangler deploy
 ```
 
-**Required secrets:**
+**Task Notifier Worker:**
+```bash
+cd sponsorops/workers/task-notifier
+npx wrangler deploy
+```
+
+**Required secrets (both workers):**
 ```bash
 npx wrangler secret put SUPABASE_URL
 npx wrangler secret put SUPABASE_SERVICE_KEY
@@ -152,14 +157,23 @@ npx wrangler secret put SUPABASE_SERVICE_KEY
 
 ## Database Migrations
 
-SQL migrations are in the project root with `supabase-migration-*.sql` naming.
+SQL migrations are in the `sponsorops/` directory with `supabase-migration-*.sql` naming.
 
-Run in Supabase SQL Editor:
-1. `supabase-schema.sql` - Initial schema
-2. `supabase-migration-teams.sql` - Multi-team support
-3. `supabase-migration-team-info-fields.sql` - Team variables
-4. `supabase-migration-playbooks.sql` - Custom playbooks
-5. `supabase-migration-research.sql` - Research/lead scoring
+Run in Supabase SQL Editor in this order:
+1. `supabase-schema.sql` - Initial schema (sponsors, interactions, tasks, team_info, audit_log)
+2. `supabase-migration-auth.sql` - Authentication setup
+3. `supabase-migration-teams.sql` - Multi-team support (teams, team_members, team_invites)
+4. `supabase-migration-playbooks.sql` - Custom email/phone templates
+5. `supabase-migration-tasks.sql` - Enhanced task system (categories, priorities, status)
+6. `supabase-migration-contacts.sql` - Multi-contact per sponsor
+7. `supabase-migration-donations.sql` - Donation tracking
+8. `supabase-migration-research.sql` - Lead scoring and temperature
+9. `supabase-migration-team-info-fields.sql` - Team variables and annual tasks
+10. `supabase-migration-email-queue.sql` - Email queue for unmatched emails
+11. `supabase-migration-task-notes.sql` - Task notes field
+12. `supabase-migration-annual-tasks.sql` - Annual task templates
+13. `supabase-migration-hidden-playbooks.sql` - Hide default templates
+14. `supabase-fix-invite-rls.sql` - RLS policy fixes for invites
 
 ## Working with Claude
 
